@@ -17,7 +17,6 @@ pub struct Config<'a> {
     pub prefer_cxx: String,
     pub prefer_py: String,
     pub retry_limit: i64,
-    pub debug: bool,
     pub no_cookie: bool,
     pub cookie: String,
     pub client: Option<&'a reqwest::Client>,
@@ -33,7 +32,6 @@ impl<'a> Config<'a> {
             prefer_cxx: String::from("c++17"),
             prefer_py: String::from("py3"),
             retry_limit: 3,
-            debug: false,
             no_cookie: false,
             cookie: String::from(""),
             client: None,
@@ -89,11 +87,6 @@ impl<'a> Config<'a> {
             }
             _ => (),
         }
-
-        match &v["debug"] {
-            Value::Bool(b) => self.debug = *b,
-            _ => (),
-        };
 
         match &v["no_cookie"] {
             Value::Bool(b) => self.no_cookie = *b,
