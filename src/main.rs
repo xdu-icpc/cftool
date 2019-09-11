@@ -32,14 +32,15 @@ fn get_csrf_token(resp: &mut reqwest::Response) -> Result<String, Box<std::error
     Ok(String::from(csrf))
 }
 
-fn http_get(client: &reqwest::Client, url: &url::Url, cfg: &Config) -> reqwest::Response {
+fn http_get(url: &url::Url, cfg: &Config) -> reqwest::Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
     let mut r = Option::<reqwest::Response>::None;
     let mut retry_limit = cfg.retry_limit;
 
     loop {
-        let resp = client
+        let resp = cfg.client
+            .unwrap()
             .get(url.as_str())
             .header(USER_AGENT, &cfg.user_agent)
             .header(COOKIE, &cfg.cookie)
@@ -193,10 +194,10 @@ fn print_verdict(resp: &mut reqwest::Response) -> bool {
     }
 }
 
-fn poll_or_query_verdict(c: &reqwest::Client, url: &url::Url, cfg: &Config, poll: bool) {
+fn poll_or_query_verdict(url: &url::Url, cfg: &Config, poll: bool) {
     let mut wait = true;
     while wait {
-        let mut resp = http_get(c, url, cfg);
+        let mut resp = http_get(url, cfg);
         wait = print_verdict(&mut resp) && poll;
     }
 }
@@ -474,6 +475,7 @@ fn main() {
         .redirect(reqwest::RedirectPolicy::none())
         .build()
         .unwrap();
+    cfg.client = Some(&client);
 
     if cfg.contest_path == "" {
         error!("no contest URL provided");
@@ -493,7 +495,7 @@ fn main() {
         None => String::new(),
     };
 
-    let resp_try = http_get(&client, &submit_url, &cfg);
+    let resp_try = http_get(&submit_url, &cfg);
     let mut resp = if resp_try.status().is_redirection() {
         // We are redirected.
         info!("authentication required");
@@ -519,7 +521,7 @@ fn main() {
             exit(1);
         });
 
-        let mut resp = http_get(&client, &login_url, &cfg);
+        let mut resp = http_get(&login_url, &cfg);
         let csrf = get_csrf_token(&mut resp).unwrap_or_else(|err| {
             error!("failed to get CSRF token: {}", err);
             exit(1);
@@ -545,7 +547,8 @@ fn main() {
         params.insert("remember", "on");
 
         info!("POST /enter");
-        let resp = client
+        let resp = cfg.client
+            .unwrap()
             .post(login_url.as_str())
             .header(USER_AGENT, ua)
             .header(COOKIE, &cfg.cookie)
@@ -561,7 +564,7 @@ fn main() {
         }
 
         // Retry to GET the submit page.
-        let resp = http_get(&client, &submit_url, &cfg);
+        let resp = http_get(&submit_url, &cfg);
         if resp.status().is_redirection() {
             error!(
                 "authentication failed, maybe identy or password is\
@@ -579,7 +582,7 @@ fn main() {
         Action::Dry => exit(0),
         Action::Query => {
             let my_url = contest_url.join("my").unwrap();
-            poll_or_query_verdict(&client, &my_url, &cfg, false);
+            poll_or_query_verdict(&my_url, &cfg, false);
             exit(0);
         }
         Action::None => unreachable!(),
@@ -609,7 +612,8 @@ fn main() {
         .part("sourceFile", src);
 
     debug!("POST {}", submit_url.path());
-    let resp = client
+    let resp = cfg.client
+        .unwrap()
         .post(submit_url.as_str())
         .header(USER_AGENT, &cfg.user_agent)
         .header(COOKIE, &cfg.cookie)
@@ -627,6 +631,6 @@ fn main() {
 
     if need_poll {
         let my_url = contest_url.join("my").unwrap();
-        poll_or_query_verdict(&client, &my_url, &cfg, true);
+        poll_or_query_verdict(&my_url, &cfg, true);
     }
 }
