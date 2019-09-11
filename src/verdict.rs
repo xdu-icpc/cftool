@@ -24,26 +24,26 @@ impl Verdict {
         // The line containing <td> mark is same in coach mode and normal
         // mode, but the next line containing the actual verdict is not.
         // So we have to match the previous line :(.
-        let re = Regex::new(r"<td party[^>]* class=[^>]*status-verdict-cell*.*\n(?P<line>.*)\n")
+        let re = Regex::new(r"<td party[^>]* class=[^>]*status-verdict-cell.*submissionId=.(?P<id>[0-9]*).*\n(?P<line>.*)\n")
             .unwrap();
         let txt = resp.text()?;
         let caps = match re.captures(&txt) {
             Some(c) => c,
             None => return Err(Box::new(ParseError {})),
         };
-        let line = &caps["line"];
-
-        let re = regex::Regex::new(r"submissionId=.(?P<id>[0-9]*).").unwrap();
-        let caps = match re.captures(&line) {
-            Some(c) => c,
-            None => return Err(Box::new(ParseError {})),
-        };
         let id = &caps["id"];
+        let line = &caps["line"];
 
         if line.contains("Compilation error") {
             // Special case it because the CSS style is different.
             let id_msg = format!("{}: Compilation error", id);
             return Ok(Verdict::Rejected(id_msg));
+        }
+
+        if line.contains("In queue") {
+            // Likewise.
+            let id_msg = format!("{}: In queue", id);
+            return Ok(Verdict::Waiting(id_msg));
         }
 
         let re =
