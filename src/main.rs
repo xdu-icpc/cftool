@@ -34,16 +34,38 @@ fn get_csrf_token(resp: &mut reqwest::Response) -> Result<String, Box<std::error
 fn http_get(client: &reqwest::Client, url: &url::Url, ua: &str, cookie: &str) -> reqwest::Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
-    let resp = client
-        .get(url.as_str())
-        .header(USER_AGENT, ua)
-        .header(COOKIE, cookie)
-        .send()
-        .unwrap_or_else(|err| {
-            error!("GET {} failed: {}", url.path(), err);
-            exit(1);
-        });
+    let mut r = Option::<reqwest::Response>::None;
+    let mut retry_limit = 3;
 
+    loop {
+        let resp = client
+            .get(url.as_str())
+            .header(USER_AGENT, ua)
+            .header(COOKIE, cookie)
+            .send();
+
+        let retry = match resp {
+            Err(e) => {
+                if e.is_timeout() && retry_limit > 0 {
+                    retry_limit -= 1;
+                    true
+                } else {
+                    error!("GET {} failed: {}", url.path(), e);
+                    exit(1);
+                }
+            }
+            Ok(resp) => {
+                r = Some(resp);
+                false
+            }
+        };
+
+        if !retry {
+            break;
+        }
+    }
+
+    let resp = r.unwrap();
     if !resp.status().is_success() && !resp.status().is_redirection() {
         error!("GET {} failed with status: {}", url.path(), resp.status());
         exit(1);
