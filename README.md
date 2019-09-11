@@ -10,7 +10,7 @@ your working directory.  An example is in `example/cftool.json`.
 
 Note that `contest_path` can be a contest, a gym contest, or a group
 contest.  And `server` can be `http://codeforces.com`,
-`https://codeforces.com", or `https://codeforc.es`.  You should always use
+`https://codeforces.com`, or `https://codeforc.es`.  You should always use
 HTTPS if you've set `Enforce https` in Codeforces settings or `cftool` will
 malfunction.  It's known using `http://codeforc.es` will cause malfunction.
 
