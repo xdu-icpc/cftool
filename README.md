@@ -22,6 +22,11 @@ Then you can:
 
 Use `cftool -h` to see more options.
 
+You may be prompted for password.  `cftool` saves cookies so you won't be
+prompted again until the session expires (in 24 hours, seemingly).
+
+You can add `-v` or even `-vv` to see more detail of `cftool`.
+
 ## Bugs
 
 `cftool is not tested in real contests yet.  Not sure if it will malfunction
