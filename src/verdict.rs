@@ -20,10 +20,35 @@ pub enum Verdict {
 impl Verdict {
     pub fn parse(resp: &mut reqwest::Response) -> Result<Self, Box<Error>> {
         use regex::Regex;
-        let re = Regex::new(r"a href.*submissionId=.(?P<id>[0-9]*).*<span class='verdict-(?P<verdict>.*)'>(?P<message>.*)</span></a>")
+
+        // The line containing <td> mark is same in coach mode and normal
+        // mode, but the next line containing the actual verdict is not.
+        // So we have to match the previous line :(.
+        let re = Regex::new(r"<td party[^>]* class=[^>]*status-verdict-cell*.*\n(?P<line>.*)\n")
             .unwrap();
         let txt = resp.text()?;
         let caps = match re.captures(&txt) {
+            Some(c) => c,
+            None => return Err(Box::new(ParseError {})),
+        };
+        let line = &caps["line"];
+
+        let re = regex::Regex::new(r"submissionId=.(?P<id>[0-9]*).").unwrap();
+        let caps = match re.captures(&line) {
+            Some(c) => c,
+            None => return Err(Box::new(ParseError {})),
+        };
+        let id = &caps["id"];
+
+        if line.contains("Compilation error") {
+            // Special case it because the CSS style is different.
+            let id_msg = format!("{}: Compilation error", id);
+            return Ok(Verdict::Rejected(id_msg));
+        }
+
+        let re =
+            regex::Regex::new(r"<span class='verdict-(?P<verdict>.*)'>(?P<message>.*)</").unwrap();
+        let caps = match re.captures(&line) {
             Some(c) => c,
             None => return Err(Box::new(ParseError {})),
         };
@@ -33,7 +58,7 @@ impl Verdict {
         let re = Regex::new(r"<.[^>]*>").unwrap();
         let clean_msg = re.replace_all(message, "");
 
-        let id_msg = format!("{} {}", &caps["id"], clean_msg);
+        let id_msg = format!("{} {}", id, clean_msg);
 
         Ok(match &caps["verdict"] {
             "accepted" => Verdict::Accepted(id_msg),
