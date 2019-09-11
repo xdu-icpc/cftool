@@ -101,7 +101,8 @@ fn maybe_save_cookie(s: &str, path: &std::path::Path) {
 
     let f = std::fs::OpenOptions::new()
         .write(true)
-        .create_new(true)
+        .create(true)
+        .truncate(true)
         .open(path);
 
     match f {
