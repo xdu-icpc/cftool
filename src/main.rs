@@ -199,10 +199,18 @@ fn print_verdict(resp: &mut Response) -> bool {
 }
 
 fn poll_or_query_verdict(url: &url::Url, cfg: &Config, poll: bool) {
+    use std::time::{SystemTime, Duration};
     let mut wait = true;
     while wait {
+        let next_try = SystemTime::now() + Duration::new(5, 0);
         let mut resp = http_get(url, cfg);
         wait = print_verdict(&mut resp) && poll;
+        if !wait {
+            break;
+        }
+        if let Ok(d) = next_try.duration_since(SystemTime::now()) {
+            std::thread::sleep(d);
+        }
     }
 }
 
