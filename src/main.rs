@@ -297,7 +297,7 @@ fn main() {
     let v = matches.occurrences_of("v") as usize;
     stderrlog::new()
         .module(module_path!())
-        .verbosity(v+1)
+        .verbosity(v + 1)
         .init()
         .unwrap();
 
