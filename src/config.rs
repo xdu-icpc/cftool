@@ -18,6 +18,7 @@ pub struct Config {
     pub prefer_py: String,
     pub debug: bool,
     pub no_cookie: bool,
+    pub cookie: String,
 }
 
 impl Config {
@@ -31,6 +32,7 @@ impl Config {
             prefer_py: String::from("py3"),
             debug: false,
             no_cookie: false,
+            cookie: String::from(""),
         }
     }
 

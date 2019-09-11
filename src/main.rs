@@ -3,6 +3,7 @@ mod verdict;
 use log::{debug, error, info, warn};
 use reqwest::header::{COOKIE, USER_AGENT};
 use std::process::exit;
+use config::Config;
 
 #[derive(Debug)]
 struct CSRFError;
@@ -31,7 +32,7 @@ fn get_csrf_token(resp: &mut reqwest::Response) -> Result<String, Box<std::error
     Ok(String::from(csrf))
 }
 
-fn http_get(client: &reqwest::Client, url: &url::Url, ua: &str, cookie: &str) -> reqwest::Response {
+fn http_get(client: &reqwest::Client, url: &url::Url, cfg: &Config) -> reqwest::Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
     let mut r = Option::<reqwest::Response>::None;
@@ -40,8 +41,8 @@ fn http_get(client: &reqwest::Client, url: &url::Url, ua: &str, cookie: &str) ->
     loop {
         let resp = client
             .get(url.as_str())
-            .header(USER_AGENT, ua)
-            .header(COOKIE, cookie)
+            .header(USER_AGENT, &cfg.user_agent)
+            .header(COOKIE, &cfg.cookie)
             .send();
 
         let retry = match resp {
@@ -74,7 +75,7 @@ fn http_get(client: &reqwest::Client, url: &url::Url, ua: &str, cookie: &str) ->
     resp
 }
 
-fn override_config(cfg: &mut config::Config, p: &std::path::Path) {
+fn override_config(cfg: &mut Config, p: &std::path::Path) {
     debug!("trying to read user config file {}", p.display());
     cfg.from_file(p).unwrap_or_else(|err| {
         error!("can not custom config file {}: {}", p.display(), err);
@@ -83,7 +84,7 @@ fn override_config(cfg: &mut config::Config, p: &std::path::Path) {
     debug!("loaded custom config file {}", p.display());
 }
 
-fn get_lang(cfg: &config::Config, ext: &str) -> &'static str {
+fn get_lang(cfg: &Config, ext: &str) -> &'static str {
     let lang_cxx = match cfg.prefer_cxx.as_str() {
         "c++17" => "54",
         "c++14" => "50",
@@ -192,10 +193,10 @@ fn print_verdict(resp: &mut reqwest::Response) -> bool {
     }
 }
 
-fn poll_or_query_verdict(c: &reqwest::Client, url: &url::Url, ua: &str, cookie: &str, poll: bool) {
+fn poll_or_query_verdict(c: &reqwest::Client, url: &url::Url, cfg: &Config, poll: bool) {
     let mut wait = true;
     while wait {
-        let mut resp = http_get(c, url, ua, cookie);
+        let mut resp = http_get(c, url, cfg);
         wait = print_verdict(&mut resp) && poll;
     }
 }
@@ -364,7 +365,7 @@ fn main() {
         ""
     };
 
-    let mut cfg = config::Config::new();
+    let mut cfg = Config::new();
 
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
 
@@ -487,12 +488,12 @@ fn main() {
     });
     let submit_url = contest_url.join("submit").unwrap();
 
-    let mut cookie_str = match &cookie_file {
+    cfg.cookie = match &cookie_file {
         Some(f) => maybe_load_cookie(f.as_path()),
         None => String::new(),
     };
 
-    let resp_try = http_get(&client, &submit_url, ua, &cookie_str);
+    let resp_try = http_get(&client, &submit_url, &cfg);
     let mut resp = if resp_try.status().is_redirection() {
         // We are redirected.
         info!("authentication required");
@@ -510,7 +511,7 @@ fn main() {
                 Some(f) => maybe_save_cookie(&s, f),
                 _ => (),
             };
-            cookie_str = s;
+            cfg.cookie = s;
         }
 
         let login_url = server_url.join("enter").unwrap_or_else(|err| {
@@ -518,7 +519,7 @@ fn main() {
             exit(1);
         });
 
-        let mut resp = http_get(&client, &login_url, ua, &cookie_str);
+        let mut resp = http_get(&client, &login_url, &cfg);
         let csrf = get_csrf_token(&mut resp).unwrap_or_else(|err| {
             error!("failed to get CSRF token: {}", err);
             exit(1);
@@ -547,7 +548,7 @@ fn main() {
         let resp = client
             .post(login_url.as_str())
             .header(USER_AGENT, ua)
-            .header(COOKIE, &cookie_str)
+            .header(COOKIE, &cfg.cookie)
             .form(&params)
             .send()
             .unwrap_or_else(|err| {
@@ -560,7 +561,7 @@ fn main() {
         }
 
         // Retry to GET the submit page.
-        let resp = http_get(&client, &submit_url, ua, &cookie_str);
+        let resp = http_get(&client, &submit_url, &cfg);
         if resp.status().is_redirection() {
             error!(
                 "authentication failed, maybe identy or password is\
@@ -578,7 +579,7 @@ fn main() {
         Action::Dry => exit(0),
         Action::Query => {
             let my_url = contest_url.join("my").unwrap();
-            poll_or_query_verdict(&client, &my_url, ua, &cookie_str, false);
+            poll_or_query_verdict(&client, &my_url, &cfg, false);
             exit(0);
         }
         Action::None => unreachable!(),
@@ -611,7 +612,7 @@ fn main() {
     let resp = client
         .post(submit_url.as_str())
         .header(USER_AGENT, &cfg.user_agent)
-        .header(COOKIE, &cookie_str)
+        .header(COOKIE, &cfg.cookie)
         .multipart(form)
         .send()
         .unwrap_or_else(|err| {
@@ -626,6 +627,6 @@ fn main() {
 
     if need_poll {
         let my_url = contest_url.join("my").unwrap();
-        poll_or_query_verdict(&client, &my_url, ua, &cookie_str, true);
+        poll_or_query_verdict(&client, &my_url, &cfg, true);
     }
 }
