@@ -1,9 +1,10 @@
 mod config;
 mod verdict;
+use config::Config;
 use log::{debug, error, info, warn};
 use reqwest::header::{COOKIE, USER_AGENT};
+use reqwest::{RedirectPolicy, RequestBuilder, Response};
 use std::process::exit;
-use config::Config;
 
 #[derive(Debug)]
 struct CSRFError;
@@ -16,7 +17,7 @@ impl std::fmt::Display for CSRFError {
     }
 }
 
-fn get_csrf_token(resp: &mut reqwest::Response) -> Result<String, Box<std::error::Error>> {
+fn get_csrf_token(resp: &mut Response) -> Result<String, Box<std::error::Error>> {
     use regex::Regex;
     let re = Regex::new(r"meta name=.X-Csrf-Token. content=.(.*)./>").unwrap();
     let txt = resp.text()?;
@@ -32,42 +33,43 @@ fn get_csrf_token(resp: &mut reqwest::Response) -> Result<String, Box<std::error
     Ok(String::from(csrf))
 }
 
-fn http_get(url: &url::Url, cfg: &Config) -> reqwest::Response {
-    info!("GET {} from {}", url.path(), url.host().unwrap());
-
-    let mut r = Option::<reqwest::Response>::None;
+fn http_request_retry(req: &Fn() -> RequestBuilder, cfg: &Config) -> reqwest::Result<Response> {
     let mut retry_limit = cfg.retry_limit;
-
     loop {
-        let resp = cfg.client
-            .unwrap()
-            .get(url.as_str())
-            .header(USER_AGENT, &cfg.user_agent)
-            .header(COOKIE, &cfg.cookie)
-            .send();
-
-        let retry = match resp {
+        let resp = req().send();
+        match &resp {
             Err(e) => {
                 if e.is_timeout() && retry_limit > 0 {
                     retry_limit -= 1;
-                    true
+                    info!("timeout, retrying");
+                    continue;
                 } else {
-                    error!("GET {} failed: {}", url.path(), e);
-                    exit(1);
+                    return resp;
                 }
             }
-            Ok(resp) => {
-                r = Some(resp);
-                false
-            }
+            _ => return resp,
         };
-
-        if !retry {
-            break;
-        }
     }
+}
 
-    let resp = r.unwrap();
+fn http_get(url: &url::Url, cfg: &Config) -> Response {
+    info!("GET {} from {}", url.path(), url.host().unwrap());
+
+    let resp = http_request_retry(
+        &|| {
+            cfg.client
+                .unwrap()
+                .get(url.as_str())
+                .header(USER_AGENT, &cfg.user_agent)
+                .header(COOKIE, &cfg.cookie)
+        },
+        cfg,
+    )
+    .unwrap_or_else(|e| {
+        error!("GET {} failed: {}", url.path(), e);
+        exit(1);
+    });
+
     if !resp.status().is_success() && !resp.status().is_redirection() {
         error!("GET {} failed with status: {}", url.path(), resp.status());
         exit(1);
@@ -172,7 +174,7 @@ fn maybe_load_cookie(path: &std::path::Path) -> String {
     s
 }
 
-fn print_verdict(resp: &mut reqwest::Response) -> bool {
+fn print_verdict(resp: &mut Response) -> bool {
     use termcolor::ColorChoice::Auto;
     use termcolor::StandardStream;
     use verdict::Verdict;
@@ -472,7 +474,7 @@ fn main() {
     // It will throw set-cookie the header of redirect response.
     let client = reqwest::Client::builder()
         .gzip(true)
-        .redirect(reqwest::RedirectPolicy::none())
+        .redirect(RedirectPolicy::none())
         .build()
         .unwrap();
     cfg.client = Some(&client);
@@ -547,7 +549,8 @@ fn main() {
         params.insert("remember", "on");
 
         info!("POST /enter");
-        let resp = cfg.client
+        let resp = cfg
+            .client
             .unwrap()
             .post(login_url.as_str())
             .header(USER_AGENT, ua)
@@ -595,12 +598,12 @@ fn main() {
 
     debug!("CSRF token for {} is {}", submit_url.path(), csrf);
 
-    use reqwest::multipart::Part;
+    use reqwest::multipart::{Form, Part};
     let src = Part::file(source).unwrap_or_else(|err| {
         error!("can not load file {} to be submitted: {}", source, err);
         exit(1);
     });
-    let form = reqwest::multipart::Form::new()
+    let form = Form::new()
         .text("csrf_token", String::from(csrf))
         .text("ftaa", "")
         .text("bfaa", "")
@@ -612,7 +615,8 @@ fn main() {
         .part("sourceFile", src);
 
     debug!("POST {}", submit_url.path());
-    let resp = cfg.client
+    let resp = cfg
+        .client
         .unwrap()
         .post(submit_url.as_str())
         .header(USER_AGENT, &cfg.user_agent)
