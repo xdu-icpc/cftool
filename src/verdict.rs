@@ -46,6 +46,24 @@ impl Verdict {
             return Ok(Verdict::Waiting(id_msg));
         }
 
+        if line.contains("Pending judgement") {
+            // Likewise.
+            let id_msg = format!("{}: Pending judgement", id);
+            return Ok(Verdict::Waiting(id_msg));
+        }
+
+        if line.contains("Partial") {
+            // Likewise.
+            let id_msg = format!("{}: Partial", id);
+            return Ok(Verdict::Rejected(id_msg));
+        }
+
+        if line.contains("Skipped") {
+            // Likewise.
+            let id_msg = format!("{}: Skipped", id);
+            return Ok(Verdict::Rejected(id_msg));
+        }
+
         let re =
             regex::Regex::new(r"<span class='verdict-(?P<verdict>.*)'>(?P<message>.*)</").unwrap();
         let caps = match re.captures(&line) {
@@ -62,7 +80,7 @@ impl Verdict {
 
         Ok(match &caps["verdict"] {
             "accepted" => Verdict::Accepted(id_msg),
-            "rejected" => Verdict::Rejected(id_msg),
+            "rejected" | "failed" => Verdict::Rejected(id_msg),
             "waiting" => Verdict::Waiting(id_msg),
             _ => return Err(Box::new(ParseError {})),
         })
