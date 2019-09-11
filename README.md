@@ -29,5 +29,5 @@ You can add `-v` or even `-vv` to see more detail of `cftool`.
 
 ## Bugs
 
-`cftool is not tested in real contests yet.  Not sure if it will malfunction
+`cftool` is not tested in real contests yet.  Not sure if it will malfunction
 or cause you to be banned.
