@@ -84,7 +84,7 @@ fn override_config(cfg: &mut Config, p: &std::path::Path) {
         error!("can not custom config file {}: {}", p.display(), err);
         exit(1);
     });
-    debug!("loaded custom config file {}", p.display());
+    info!("loaded custom config file {}", p.display());
 }
 
 fn get_lang(cfg: &Config, ext: &str) -> &'static str {
@@ -139,13 +139,15 @@ fn maybe_save_cookie(s: &str, path: &std::path::Path) {
                 e
             );
             error!("cookie not saved");
+            return;
         }
         Ok(mut f) => {
             use std::io::Write;
-            f.write(s.as_bytes()).unwrap_or_else(|e| {
+            if let Err(e) = f.write(s.as_bytes()) {
                 error!("can not write into cache file {}: {}", path.display(), e);
-                0
-            });
+            } else {
+                info!("cookie saved to cache {}", path.display());
+            }
         }
     }
 }
@@ -169,7 +171,7 @@ fn maybe_load_cookie(path: &std::path::Path) -> String {
             exit(1);
         });
     } else {
-        debug!("cookie cache {} does not exist", path.display());
+        info!("cookie cache {} does not exist", path.display());
     }
     s
 }
@@ -295,7 +297,7 @@ fn main() {
     let v = matches.occurrences_of("v") as usize;
     stderrlog::new()
         .module(module_path!())
-        .verbosity(v)
+        .verbosity(v+1)
         .init()
         .unwrap();
 
@@ -379,7 +381,7 @@ fn main() {
             if config_file.exists() {
                 override_config(&mut cfg, &config_file);
             } else {
-                debug!("user config file does not exist");
+                info!("user config file {} does not exist", config_file.display());
             }
             ()
         }
@@ -614,7 +616,7 @@ fn main() {
         .text("tabSize", "4")
         .part("sourceFile", src);
 
-    debug!("POST {}", submit_url.path());
+    info!("POST {}", submit_url.path());
     let resp = cfg
         .client
         .unwrap()
