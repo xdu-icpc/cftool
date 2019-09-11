@@ -147,6 +147,36 @@ fn maybe_load_cookie(path: &std::path::Path) -> String {
     s
 }
 
+fn print_verdict(resp: &mut reqwest::Response) -> bool {
+    use termcolor::ColorChoice::Auto;
+    use termcolor::StandardStream;
+    use verdict::Verdict;
+    let mut w = StandardStream::stdout(Auto);
+
+    let v = Verdict::parse(resp).unwrap_or_else(|e| {
+        error!("can not get verdict from response: {}", e);
+        exit(1);
+    });
+
+    v.print(&mut w).unwrap_or_else(|e| {
+        error!("can not print verdict: {}", e);
+        exit(1);
+    });
+
+    match v {
+        Verdict::Waiting(_) => true,
+        _ => false,
+    }
+}
+
+fn poll_or_query_verdict(c: &reqwest::Client, url: &url::Url, ua: &str, cookie: &str, poll: bool) {
+    let mut wait = true;
+    while wait {
+        let mut resp = http_get(c, url, ua, cookie);
+        wait = print_verdict(&mut resp) && poll;
+    }
+}
+
 enum Action {
     None,
     Dry,
@@ -279,7 +309,6 @@ fn main() {
         if let Action::None = action {
             action = Action::Query;
         }
-        error!("polling is not implemented yet, unfortunately");
     }
 
     if let Action::None = action {
@@ -526,22 +555,8 @@ fn main() {
         Action::Dry => exit(0),
         Action::Query => {
             let my_url = contest_url.join("my").unwrap();
-            let mut resp = http_get(&client, &my_url, ua, &cookie_str);
-            use termcolor::ColorChoice::Auto;
-            use termcolor::StandardStream;
-            let mut w = StandardStream::stdout(Auto);
-
-            verdict::Verdict::parse(&mut resp)
-                .unwrap_or_else(|e| {
-                    error!("can not get verdict from response: {}", e);
-                    exit(1);
-                })
-                .print(&mut w)
-                .unwrap_or_else(|e| {
-                    error!("can not print verdict: {}", e);
-                    exit(1);
-                });
-            exit(0)
+            poll_or_query_verdict(&client, &my_url, ua, &cookie_str, false);
+            exit(0);
         }
         Action::None => unreachable!(),
     };
@@ -573,7 +588,7 @@ fn main() {
     let resp = client
         .post(submit_url.as_str())
         .header(USER_AGENT, &cfg.user_agent)
-        .header(COOKIE, cookie_str)
+        .header(COOKIE, &cookie_str)
         .multipart(form)
         .send()
         .unwrap_or_else(|err| {
@@ -584,5 +599,10 @@ fn main() {
     if !resp.status().is_success() && !resp.status().is_redirection() {
         error!("POST {} failed with status: {}", submit_url, resp.status());
         exit(1);
+    }
+
+    if need_poll {
+        let my_url = contest_url.join("my").unwrap();
+        poll_or_query_verdict(&client, &my_url, ua, &cookie_str, true);
     }
 }
