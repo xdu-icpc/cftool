@@ -16,6 +16,7 @@ pub struct Config {
     pub user_agent: String,
     pub prefer_cxx: String,
     pub prefer_py: String,
+    pub retry_limit: i64,
     pub debug: bool,
     pub no_cookie: bool,
     pub cookie: String,
@@ -30,6 +31,7 @@ impl Config {
             user_agent: String::from(user_agent()),
             prefer_cxx: String::from("c++17"),
             prefer_py: String::from("py3"),
+            retry_limit: 3,
             debug: false,
             no_cookie: false,
             cookie: String::from(""),
@@ -74,6 +76,15 @@ impl Config {
 
         match &v["prefer_py"] {
             Value::String(s) => self.prefer_py = s.to_string(),
+            _ => (),
+        }
+
+        match &v["retry_limit"] {
+            Value::Number(n) => {
+                if n.is_i64() {
+                    self.retry_limit = n.as_i64().unwrap();
+                }
+            }
             _ => (),
         }
 

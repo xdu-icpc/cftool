@@ -36,7 +36,7 @@ fn http_get(client: &reqwest::Client, url: &url::Url, cfg: &Config) -> reqwest::
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
     let mut r = Option::<reqwest::Response>::None;
-    let mut retry_limit = 3;
+    let mut retry_limit = cfg.retry_limit;
 
     loop {
         let resp = client
