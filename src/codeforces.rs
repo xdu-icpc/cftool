@@ -26,7 +26,7 @@ pub struct Codeforces {
     pub retry_limit: i64,
     pub no_cookie: bool,
     pub cookie: String,
-    client: Option<reqwest::Client>,
+    client: reqwest::Client,
 }
 
 impl Codeforces {
@@ -42,7 +42,7 @@ impl Codeforces {
             retry_limit: 3,
             no_cookie: false,
             cookie: String::from(""),
-            client: Some(b.build().chain_err(|| "can not build HTTP client")?),
+            client: b.build().chain_err(|| "can not build HTTP client")?,
         };
         Ok(cf)
     }
@@ -139,7 +139,7 @@ impl Codeforces {
             .server_url
             .join(p.as_ref())
             .chain_err(|| "can not build a URL from the path")?;
-        Ok(self.client.as_ref().unwrap().get(u.as_str()))
+        Ok(self.client.get(u.as_str()))
     }
 
     pub fn post<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
@@ -148,6 +148,6 @@ impl Codeforces {
             .server_url
             .join(p.as_ref())
             .chain_err(|| "can not build a URL from the path")?;
-        Ok(self.client.as_ref().unwrap().post(u.as_str()))
+        Ok(self.client.post(u.as_str()))
     }
 }
