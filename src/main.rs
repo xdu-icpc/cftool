@@ -1,7 +1,7 @@
-mod config;
+mod codeforces;
 mod verdict;
 use std::error::Error;
-use config::Config;
+use codeforces::Codeforces;
 use log::{debug, error, info, warn};
 use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{RedirectPolicy, RequestBuilder, Response};
@@ -34,7 +34,7 @@ fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
     Ok(String::from(csrf))
 }
 
-fn http_request_retry<F: Fn()->RequestBuilder>(req: F, cfg: &Config) -> reqwest::Result<Response> {
+fn http_request_retry<F: Fn()->RequestBuilder>(req: F, cfg: &Codeforces) -> reqwest::Result<Response> {
     let mut retry_limit = cfg.retry_limit;
     loop {
         let resp = req().send();
@@ -53,7 +53,7 @@ fn http_request_retry<F: Fn()->RequestBuilder>(req: F, cfg: &Config) -> reqwest:
     }
 }
 
-fn http_get(url: &url::Url, cfg: &Config) -> Response {
+fn http_get(url: &url::Url, cfg: &Codeforces) -> Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
     let resp = http_request_retry(
@@ -79,7 +79,7 @@ fn http_get(url: &url::Url, cfg: &Config) -> Response {
     resp
 }
 
-fn override_config(cfg: &mut Config, p: &std::path::Path) {
+fn override_config(cfg: &mut Codeforces, p: &std::path::Path) {
     debug!("trying to read user config file {}", p.display());
     cfg.from_file(p).unwrap_or_else(|err| {
         error!("can not custom config file {}: {}", p.display(), err);
@@ -88,7 +88,7 @@ fn override_config(cfg: &mut Config, p: &std::path::Path) {
     info!("loaded custom config file {}", p.display());
 }
 
-fn get_lang(cfg: &Config, ext: &str) -> &'static str {
+fn get_lang(cfg: &Codeforces, ext: &str) -> &'static str {
     let lang_cxx = match cfg.prefer_cxx.as_str() {
         "c++17" => "54",
         "c++14" => "50",
@@ -199,7 +199,7 @@ fn print_verdict(resp: &mut Response) -> bool {
     }
 }
 
-fn poll_or_query_verdict(url: &url::Url, cfg: &Config, poll: bool) {
+fn poll_or_query_verdict(url: &url::Url, cfg: &Codeforces, poll: bool) {
     use std::time::{SystemTime, Duration};
     let mut wait = true;
     while wait {
@@ -379,7 +379,7 @@ fn main() {
         ""
     };
 
-    let mut cfg = Config::new();
+    let mut cfg = Codeforces::new();
 
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
 

@@ -9,7 +9,7 @@ fn user_agent() -> &'static str {
             Safari/537.36";
 }
 
-pub struct Config<'a> {
+pub struct Codeforces<'a> {
     pub server_url: String,
     pub identy: String,
     pub contest_path: String,
@@ -22,9 +22,9 @@ pub struct Config<'a> {
     pub client: Option<&'a reqwest::Client>,
 }
 
-impl<'a> Config<'a> {
+impl<'a> Codeforces<'a> {
     pub fn new() -> Self {
-        Config {
+        Codeforces {
             server_url: String::from("https://codeforces.com"),
             identy: String::from(""),
             contest_path: String::from(""),
