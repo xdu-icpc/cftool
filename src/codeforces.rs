@@ -1,5 +1,8 @@
+use log::info;
+use reqwest::{RequestBuilder, Response};
 use std::error::Error;
 use std::path::Path;
+use url::Url;
 
 // Copied from GNOME Epiphany-3.32.4.
 fn user_agent() -> &'static str {
@@ -10,7 +13,7 @@ fn user_agent() -> &'static str {
 }
 
 pub struct Codeforces<'a> {
-    pub server_url: String,
+    pub server_url: Url,
     pub identy: String,
     pub contest_path: String,
     pub user_agent: String,
@@ -25,7 +28,7 @@ pub struct Codeforces<'a> {
 impl<'a> Codeforces<'a> {
     pub fn new() -> Self {
         Codeforces {
-            server_url: String::from("https://codeforces.com"),
+            server_url: Url::parse("https://codeforces.com").unwrap(),
             identy: String::from(""),
             contest_path: String::from(""),
             user_agent: String::from(user_agent()),
@@ -50,7 +53,13 @@ impl<'a> Codeforces<'a> {
 
         // Stupid code.  Maybe need some refactoring.
         match &v["server_url"] {
-            Value::String(s) => self.server_url = s.to_string(),
+            Value::String(s) => {
+                let u = Url::parse(s);
+                match u {
+                    Err(e) => return Err(Box::new(e)),
+                    Ok(u) => self.server_url = u,
+                }
+            }
             _ => (),
         };
 
@@ -94,5 +103,27 @@ impl<'a> Codeforces<'a> {
         };
 
         Ok(())
+    }
+
+    pub fn http_request_retry<F: Fn() -> RequestBuilder>(
+        &self,
+        req: F,
+    ) -> reqwest::Result<Response> {
+        let mut retry_limit = self.retry_limit;
+        loop {
+            let resp = req().send();
+            match &resp {
+                Err(e) => {
+                    if e.is_timeout() && retry_limit > 0 {
+                        retry_limit -= 1;
+                        info!("timeout, retrying");
+                        continue;
+                    } else {
+                        return resp;
+                    }
+                }
+                _ => return resp,
+            };
+        }
     }
 }

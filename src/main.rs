@@ -1,11 +1,12 @@
 mod codeforces;
 mod verdict;
-use std::error::Error;
 use codeforces::Codeforces;
 use log::{debug, error, info, warn};
 use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{RedirectPolicy, RequestBuilder, Response};
+use std::error::Error;
 use std::process::exit;
+use url::Url;
 
 #[derive(Debug)]
 struct CSRFError;
@@ -34,26 +35,14 @@ fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
     Ok(String::from(csrf))
 }
 
-fn http_request_retry<F: Fn()->RequestBuilder>(req: F, cfg: &Codeforces) -> reqwest::Result<Response> {
-    let mut retry_limit = cfg.retry_limit;
-    loop {
-        let resp = req().send();
-        match &resp {
-            Err(e) => {
-                if e.is_timeout() && retry_limit > 0 {
-                    retry_limit -= 1;
-                    info!("timeout, retrying");
-                    continue;
-                } else {
-                    return resp;
-                }
-            }
-            _ => return resp,
-        };
-    }
+fn http_request_retry<F: Fn() -> RequestBuilder>(
+    req: F,
+    cfg: &Codeforces,
+) -> reqwest::Result<Response> {
+    cfg.http_request_retry(req)
 }
 
-fn http_get(url: &url::Url, cfg: &Codeforces) -> Response {
+fn http_get(url: &Url, cfg: &Codeforces) -> Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
     let resp = http_request_retry(
@@ -199,8 +188,8 @@ fn print_verdict(resp: &mut Response) -> bool {
     }
 }
 
-fn poll_or_query_verdict(url: &url::Url, cfg: &Codeforces, poll: bool) {
-    use std::time::{SystemTime, Duration};
+fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
+    use std::time::{Duration, SystemTime};
     let mut wait = true;
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
@@ -425,13 +414,13 @@ fn main() {
 
     let server_override = matches.value_of("server").unwrap_or("");
     if server_override != "" {
-        cfg.server_url = String::from(server_override);
+        cfg.server_url = Url::parse(server_override).unwrap_or_else(|e| {
+            error!("can not parse url {}: {}", server_override, e);
+            exit(1);
+        });
     }
 
-    let server_url = url::Url::parse(&cfg.server_url).unwrap_or_else(|err| {
-        error!("can not parse {} as server URL: {}", cfg.server_url, err);
-        exit(1);
-    });
+    let server_url = &cfg.server_url;
 
     match server_url.scheme() {
         "http" | "https" => (),
