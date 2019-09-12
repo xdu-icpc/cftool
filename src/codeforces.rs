@@ -1,4 +1,5 @@
 use log::info;
+use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{ClientBuilder, RequestBuilder, Response};
 use std::error::Error;
 use std::path::Path;
@@ -139,7 +140,12 @@ impl Codeforces {
             .server_url
             .join(p.as_ref())
             .chain_err(|| "can not build a URL from the path")?;
-        Ok(self.client.get(u.as_str()))
+        let b = self
+            .client
+            .get(u.as_str())
+            .header(USER_AGENT, &self.user_agent)
+            .header(COOKIE, &self.cookie);
+        Ok(b)
     }
 
     pub fn post<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
@@ -148,6 +154,11 @@ impl Codeforces {
             .server_url
             .join(p.as_ref())
             .chain_err(|| "can not build a URL from the path")?;
-        Ok(self.client.post(u.as_str()))
+        let b = self
+            .client
+            .get(u.as_str())
+            .header(USER_AGENT, &self.user_agent)
+            .header(COOKIE, &self.cookie);
+        Ok(b)
     }
 }

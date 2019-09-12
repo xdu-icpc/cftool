@@ -2,7 +2,6 @@ mod codeforces;
 mod verdict;
 use codeforces::Codeforces;
 use log::{debug, error, info, warn};
-use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{RedirectPolicy, RequestBuilder, Response};
 use std::error::Error;
 use std::process::exit;
@@ -35,29 +34,15 @@ fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
     Ok(String::from(csrf))
 }
 
-fn http_request_retry<F: Fn() -> RequestBuilder>(
-    req: F,
-    cfg: &Codeforces,
-) -> reqwest::Result<Response> {
-    cfg.http_request_retry(req)
-}
-
 fn http_get(url: &Url, cfg: &Codeforces) -> Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
-    let resp = http_request_retry(
-        || {
-            cfg.get(url.path())
-                .unwrap()
-                .header(USER_AGENT, &cfg.user_agent)
-                .header(COOKIE, &cfg.cookie)
-        },
-        cfg,
-    )
-    .unwrap_or_else(|e| {
-        error!("GET {} failed: {}", url.path(), e);
-        exit(1);
-    });
+    let resp = cfg
+        .http_request_retry(|| cfg.get(url.path()).unwrap())
+        .unwrap_or_else(|e| {
+            error!("GET {} failed: {}", url.path(), e);
+            exit(1);
+        });
 
     if !resp.status().is_success() && !resp.status().is_redirection() {
         error!("GET {} failed with status: {}", url.path(), resp.status());
@@ -473,7 +458,6 @@ fn main() {
     } else {
         ""
     };
-    let ua = &cfg.user_agent;
 
     if cfg.contest_path == "" {
         error!("no contest URL provided");
@@ -548,8 +532,6 @@ fn main() {
         let resp = cfg
             .post(login_url.as_str())
             .unwrap()
-            .header(USER_AGENT, ua)
-            .header(COOKIE, &cfg.cookie)
             .form(&params)
             .send()
             .unwrap_or_else(|err| {
@@ -613,8 +595,6 @@ fn main() {
     let resp = cfg
         .post(submit_url.as_str())
         .unwrap()
-        .header(USER_AGENT, &cfg.user_agent)
-        .header(COOKIE, &cfg.cookie)
         .multipart(form)
         .send()
         .unwrap_or_else(|err| {
