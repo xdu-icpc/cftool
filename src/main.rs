@@ -462,10 +462,13 @@ fn main() {
 
     cfg.contest_path += "/";
 
-    let contest_url = cfg.server_url.join(&cfg.contest_path).unwrap_or_else(|err| {
-        error!("can not determine contest URL: {}", err);
-        exit(1);
-    });
+    let contest_url = cfg
+        .server_url
+        .join(&cfg.contest_path)
+        .unwrap_or_else(|err| {
+            error!("can not determine contest URL: {}", err);
+            exit(1);
+        });
     let submit_url = contest_url.join("submit").unwrap();
 
     match &cookie_file {
@@ -476,7 +479,7 @@ fn main() {
     let resp_try = http_get(&submit_url, &cfg);
 
     // The cookie contains session ID so we should save it.
-    cfg.store_cookie(&resp_try).unwrap_or_else(|e|{
+    cfg.store_cookie(&resp_try).unwrap_or_else(|e| {
         error!("can not store cookie: {}", e);
         exit(1);
     });
@@ -531,7 +534,7 @@ fn main() {
             exit(1);
         }
 
-        cfg.store_cookie(&resp).unwrap_or_else(|e|{
+        cfg.store_cookie(&resp).unwrap_or_else(|e| {
             error!("can not save cookie: {}", e);
             exit(1);
         });

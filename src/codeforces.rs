@@ -1,7 +1,7 @@
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
-use reqwest::header::{COOKIE, USER_AGENT, SET_COOKIE};
+use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
 use reqwest::{ClientBuilder, RequestBuilder, Response};
 use std::io::{BufRead, Write};
 use std::path::Path;
@@ -134,8 +134,10 @@ impl Codeforces {
     }
 
     fn add_header(&self, b: RequestBuilder) -> RequestBuilder {
-        let cookie = self.cookie_store.iter_unexpired()
-            .map(|c| {c.encoded().to_string()})
+        let cookie = self
+            .cookie_store
+            .iter_unexpired()
+            .map(|c| c.encoded().to_string())
             .collect::<Vec<_>>()
             .join("; ");
         b.header(USER_AGENT, &self.user_agent)
@@ -159,12 +161,14 @@ impl Codeforces {
     }
 
     pub fn store_cookie(&mut self, resp: &Response) -> Result<()> {
-        let u = Url::parse(resp.url().as_str())
-            .chain_err(|| "bad url")?;
-        resp.headers().get_all(SET_COOKIE).iter()
+        let u = Url::parse(resp.url().as_str()).chain_err(|| "bad url")?;
+        resp.headers()
+            .get_all(SET_COOKIE)
+            .iter()
             .try_for_each(|val| -> Result<()> {
                 let s = val.to_str().chain_err(|| "bad cookie string")?;
-                self.cookie_store.parse(s, &u)
+                self.cookie_store
+                    .parse(s, &u)
                     .chain_err(|| "ill-formed cookie string")?;
                 Ok(())
             })?;
