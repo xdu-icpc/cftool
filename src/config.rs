@@ -39,7 +39,7 @@ impl<'a> Config<'a> {
     }
 
     // Override some config options from JSON config file.
-    pub fn from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Box<Error>> {
+    pub fn from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Box<dyn Error>> {
         use std::fs::File;
         use std::io::BufReader;
         let file = File::open(path)?;

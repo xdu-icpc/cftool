@@ -18,7 +18,7 @@ pub enum Verdict {
 }
 
 impl Verdict {
-    pub fn parse(resp: &mut reqwest::Response) -> Result<Self, Box<Error>> {
+    pub fn parse(resp: &mut reqwest::Response) -> Result<Self, Box<dyn Error>> {
         use regex::Regex;
 
         // The line containing <td> mark is same in coach mode and normal
@@ -86,7 +86,7 @@ impl Verdict {
         })
     }
 
-    pub fn print(&self, w: &mut termcolor::WriteColor) -> std::io::Result<()> {
+    pub fn print<W: termcolor::WriteColor>(&self, w: &mut W) -> std::io::Result<()> {
         use termcolor::Color::{Green, Red};
         use termcolor::ColorSpec;
         let use_color = w.supports_color();

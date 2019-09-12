@@ -1,5 +1,6 @@
 mod config;
 mod verdict;
+use std::error::Error;
 use config::Config;
 use log::{debug, error, info, warn};
 use reqwest::header::{COOKIE, USER_AGENT};
@@ -17,7 +18,7 @@ impl std::fmt::Display for CSRFError {
     }
 }
 
-fn get_csrf_token(resp: &mut Response) -> Result<String, Box<std::error::Error>> {
+fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
     use regex::Regex;
     let re = Regex::new(r"meta name=.X-Csrf-Token. content=.(.*)./>").unwrap();
     let txt = resp.text()?;
@@ -33,7 +34,7 @@ fn get_csrf_token(resp: &mut Response) -> Result<String, Box<std::error::Error>>
     Ok(String::from(csrf))
 }
 
-fn http_request_retry(req: &Fn() -> RequestBuilder, cfg: &Config) -> reqwest::Result<Response> {
+fn http_request_retry<F: Fn()->RequestBuilder>(req: F, cfg: &Config) -> reqwest::Result<Response> {
     let mut retry_limit = cfg.retry_limit;
     loop {
         let resp = req().send();
@@ -56,7 +57,7 @@ fn http_get(url: &url::Url, cfg: &Config) -> Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
     let resp = http_request_retry(
-        &|| {
+        || {
             cfg.client
                 .unwrap()
                 .get(url.as_str())
