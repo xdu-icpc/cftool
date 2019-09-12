@@ -47,9 +47,8 @@ fn http_get(url: &Url, cfg: &Codeforces) -> Response {
 
     let resp = http_request_retry(
         || {
-            cfg.client
+            cfg.get(url.path())
                 .unwrap()
-                .get(url.as_str())
                 .header(USER_AGENT, &cfg.user_agent)
                 .header(COOKIE, &cfg.cookie)
         },
@@ -368,7 +367,13 @@ fn main() {
         ""
     };
 
-    let mut cfg = Codeforces::new();
+    // We don't use redirection following feature of reqwest.
+    // It will throw set-cookie the header of redirect response.
+    let client_builder = reqwest::Client::builder()
+        .gzip(true)
+        .redirect(RedirectPolicy::none());
+
+    let mut cfg = Codeforces::new(client_builder).unwrap();
 
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
 
@@ -470,15 +475,6 @@ fn main() {
     };
     let ua = &cfg.user_agent;
 
-    // We don't use redirection following feature of reqwest.
-    // It will throw set-cookie the header of redirect response.
-    let client = reqwest::Client::builder()
-        .gzip(true)
-        .redirect(RedirectPolicy::none())
-        .build()
-        .unwrap();
-    cfg.client = Some(&client);
-
     if cfg.contest_path == "" {
         error!("no contest URL provided");
         exit(1);
@@ -550,9 +546,8 @@ fn main() {
 
         info!("POST /enter");
         let resp = cfg
-            .client
-            .unwrap()
             .post(login_url.as_str())
+            .unwrap()
             .header(USER_AGENT, ua)
             .header(COOKIE, &cfg.cookie)
             .form(&params)
@@ -616,9 +611,8 @@ fn main() {
 
     info!("POST {}", submit_url.path());
     let resp = cfg
-        .client
-        .unwrap()
         .post(submit_url.as_str())
+        .unwrap()
         .header(USER_AGENT, &cfg.user_agent)
         .header(COOKIE, &cfg.cookie)
         .multipart(form)

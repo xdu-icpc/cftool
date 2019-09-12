@@ -1,8 +1,12 @@
 use log::info;
-use reqwest::{RequestBuilder, Response};
+use reqwest::{ClientBuilder, RequestBuilder, Response};
 use std::error::Error;
 use std::path::Path;
 use url::Url;
+
+mod error {
+    error_chain::error_chain! {}
+}
 
 // Copied from GNOME Epiphany-3.32.4.
 fn user_agent() -> &'static str {
@@ -12,7 +16,7 @@ fn user_agent() -> &'static str {
             Safari/537.36";
 }
 
-pub struct Codeforces<'a> {
+pub struct Codeforces {
     pub server_url: Url,
     pub identy: String,
     pub contest_path: String,
@@ -22,12 +26,13 @@ pub struct Codeforces<'a> {
     pub retry_limit: i64,
     pub no_cookie: bool,
     pub cookie: String,
-    pub client: Option<&'a reqwest::Client>,
+    client: Option<reqwest::Client>,
 }
 
-impl<'a> Codeforces<'a> {
-    pub fn new() -> Self {
-        Codeforces {
+impl Codeforces {
+    pub fn new(b: ClientBuilder) -> error::Result<Self> {
+        use error::*;
+        let cf = Codeforces {
             server_url: Url::parse("https://codeforces.com").unwrap(),
             identy: String::from(""),
             contest_path: String::from(""),
@@ -37,8 +42,9 @@ impl<'a> Codeforces<'a> {
             retry_limit: 3,
             no_cookie: false,
             cookie: String::from(""),
-            client: None,
-        }
+            client: Some(b.build().chain_err(|| "can not build HTTP client")?),
+        };
+        Ok(cf)
     }
 
     // Override some config options from JSON config file.
@@ -125,5 +131,23 @@ impl<'a> Codeforces<'a> {
                 _ => return resp,
             };
         }
+    }
+
+    pub fn get<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
+        use error::*;
+        let u = self
+            .server_url
+            .join(p.as_ref())
+            .chain_err(|| "can not build a URL from the path")?;
+        Ok(self.client.as_ref().unwrap().get(u.as_str()))
+    }
+
+    pub fn post<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
+        use error::*;
+        let u = self
+            .server_url
+            .join(p.as_ref())
+            .chain_err(|| "can not build a URL from the path")?;
+        Ok(self.client.as_ref().unwrap().post(u.as_str()))
     }
 }
