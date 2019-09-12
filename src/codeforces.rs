@@ -1,13 +1,14 @@
 use log::info;
 use reqwest::header::{COOKIE, USER_AGENT};
 use reqwest::{ClientBuilder, RequestBuilder, Response};
-use std::error::Error;
 use std::path::Path;
 use url::Url;
 
 mod error {
     error_chain::error_chain! {}
 }
+
+use error::*;
 
 // Copied from GNOME Epiphany-3.32.4.
 fn user_agent() -> &'static str {
@@ -31,8 +32,7 @@ pub struct Codeforces {
 }
 
 impl Codeforces {
-    pub fn new(b: ClientBuilder) -> error::Result<Self> {
-        use error::*;
+    pub fn new(b: ClientBuilder) -> Result<Self> {
         let cf = Codeforces {
             server_url: Url::parse("https://codeforces.com").unwrap(),
             identy: String::from(""),
@@ -49,23 +49,20 @@ impl Codeforces {
     }
 
     // Override some config options from JSON config file.
-    pub fn from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Box<dyn Error>> {
+    pub fn from_file<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         use std::fs::File;
         use std::io::BufReader;
-        let file = File::open(path)?;
+        let file = File::open(path).chain_err(|| "can not open file")?;
         let rdr = BufReader::new(file);
 
         use serde_json::Value;
-        let v: Value = serde_json::from_reader(rdr)?;
+        let v: Value = serde_json::from_reader(rdr).chain_err(|| "can not parse JSON")?;
 
         // Stupid code.  Maybe need some refactoring.
         match &v["server_url"] {
             Value::String(s) => {
-                let u = Url::parse(s);
-                match u {
-                    Err(e) => return Err(Box::new(e)),
-                    Ok(u) => self.server_url = u,
-                }
+                let u = Url::parse(s).chain_err(|| "can not parse url")?;
+                self.server_url = u;
             }
             _ => (),
         };
@@ -112,10 +109,7 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn http_request_retry<F: Fn() -> RequestBuilder>(
-        &self,
-        req: F,
-    ) -> reqwest::Result<Response> {
+    pub fn http_request_retry<F: Fn() -> RequestBuilder>(&self, req: F) -> Result<Response> {
         let mut retry_limit = self.retry_limit;
         loop {
             let resp = req().send();
@@ -126,10 +120,10 @@ impl Codeforces {
                         info!("timeout, retrying");
                         continue;
                     } else {
-                        return resp;
+                        return resp.chain_err(|| "http request failed");
                     }
                 }
-                _ => return resp,
+                _ => return Ok(resp.unwrap()),
             };
         }
     }
@@ -139,8 +133,7 @@ impl Codeforces {
             .header(COOKIE, &self.cookie)
     }
 
-    pub fn get<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
-        use error::*;
+    pub fn get<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {
         let u = self
             .server_url
             .join(p.as_ref())
@@ -148,8 +141,7 @@ impl Codeforces {
         Ok(self.add_header(self.client.get(u.as_str())))
     }
 
-    pub fn post<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
-        use error::*;
+    pub fn post<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {
         let u = self
             .server_url
             .join(p.as_ref())
