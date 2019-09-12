@@ -1,11 +1,11 @@
-mod config;
+mod codeforces;
 mod verdict;
-use std::error::Error;
-use config::Config;
+use codeforces::Codeforces;
 use log::{debug, error, info, warn};
-use reqwest::header::{COOKIE, USER_AGENT};
-use reqwest::{RedirectPolicy, RequestBuilder, Response};
+use reqwest::{RedirectPolicy, Response};
+use std::error::Error;
 use std::process::exit;
+use url::Url;
 
 #[derive(Debug)]
 struct CSRFError;
@@ -34,42 +34,15 @@ fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
     Ok(String::from(csrf))
 }
 
-fn http_request_retry<F: Fn()->RequestBuilder>(req: F, cfg: &Config) -> reqwest::Result<Response> {
-    let mut retry_limit = cfg.retry_limit;
-    loop {
-        let resp = req().send();
-        match &resp {
-            Err(e) => {
-                if e.is_timeout() && retry_limit > 0 {
-                    retry_limit -= 1;
-                    info!("timeout, retrying");
-                    continue;
-                } else {
-                    return resp;
-                }
-            }
-            _ => return resp,
-        };
-    }
-}
-
-fn http_get(url: &url::Url, cfg: &Config) -> Response {
+fn http_get(url: &Url, cfg: &Codeforces) -> Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
-    let resp = http_request_retry(
-        || {
-            cfg.client
-                .unwrap()
-                .get(url.as_str())
-                .header(USER_AGENT, &cfg.user_agent)
-                .header(COOKIE, &cfg.cookie)
-        },
-        cfg,
-    )
-    .unwrap_or_else(|e| {
-        error!("GET {} failed: {}", url.path(), e);
-        exit(1);
-    });
+    let resp = cfg
+        .http_request_retry(|| cfg.get(url.path()).unwrap())
+        .unwrap_or_else(|e| {
+            error!("GET {} failed: {}", url.path(), e);
+            exit(1);
+        });
 
     if !resp.status().is_success() && !resp.status().is_redirection() {
         error!("GET {} failed with status: {}", url.path(), resp.status());
@@ -79,7 +52,7 @@ fn http_get(url: &url::Url, cfg: &Config) -> Response {
     resp
 }
 
-fn override_config(cfg: &mut Config, p: &std::path::Path) {
+fn override_config(cfg: &mut Codeforces, p: &std::path::Path) {
     debug!("trying to read user config file {}", p.display());
     cfg.from_file(p).unwrap_or_else(|err| {
         error!("can not custom config file {}: {}", p.display(), err);
@@ -88,7 +61,7 @@ fn override_config(cfg: &mut Config, p: &std::path::Path) {
     info!("loaded custom config file {}", p.display());
 }
 
-fn get_lang(cfg: &Config, ext: &str) -> &'static str {
+fn get_lang(cfg: &Codeforces, ext: &str) -> &'static str {
     let lang_cxx = match cfg.prefer_cxx.as_str() {
         "c++17" => "54",
         "c++14" => "50",
@@ -123,7 +96,7 @@ fn get_lang(cfg: &Config, ext: &str) -> &'static str {
     }
 }
 
-fn maybe_save_cookie(s: &str, path: &std::path::Path) {
+fn maybe_save_cookie(cf: &Codeforces, path: &std::path::Path) {
     debug!("try saving cookie to cache {}", path.display());
 
     let f = std::fs::OpenOptions::new()
@@ -143,8 +116,7 @@ fn maybe_save_cookie(s: &str, path: &std::path::Path) {
             return;
         }
         Ok(mut f) => {
-            use std::io::Write;
-            if let Err(e) = f.write(s.as_bytes()) {
+            if let Err(e) = cf.save_cookie(&mut f) {
                 error!("can not write into cache file {}: {}", path.display(), e);
             } else {
                 info!("cookie saved to cache {}", path.display());
@@ -153,10 +125,9 @@ fn maybe_save_cookie(s: &str, path: &std::path::Path) {
     }
 }
 
-fn maybe_load_cookie(path: &std::path::Path) -> String {
+fn maybe_load_cookie(cf: &mut Codeforces, path: &std::path::Path) {
     debug!("try loading cookie from cache {}", path.display());
 
-    let mut s = String::new();
     if path.exists() {
         let f = std::fs::File::open(path).unwrap_or_else(|err| {
             error!(
@@ -166,15 +137,15 @@ fn maybe_load_cookie(path: &std::path::Path) -> String {
             );
             exit(1);
         });
-        use std::io::{BufRead, BufReader};
-        BufReader::new(f).read_line(&mut s).unwrap_or_else(|err| {
+        use std::io::BufReader;
+        let r = BufReader::new(f);
+        cf.load_cookie(r).unwrap_or_else(|err| {
             error!("can not read cache file: {}", err);
             exit(1);
         });
     } else {
         info!("cookie cache {} does not exist", path.display());
     }
-    s
 }
 
 fn print_verdict(resp: &mut Response) -> bool {
@@ -199,8 +170,8 @@ fn print_verdict(resp: &mut Response) -> bool {
     }
 }
 
-fn poll_or_query_verdict(url: &url::Url, cfg: &Config, poll: bool) {
-    use std::time::{SystemTime, Duration};
+fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
+    use std::time::{Duration, SystemTime};
     let mut wait = true;
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
@@ -379,7 +350,13 @@ fn main() {
         ""
     };
 
-    let mut cfg = Config::new();
+    // We don't use redirection following feature of reqwest.
+    // It will throw set-cookie the header of redirect response.
+    let client_builder = reqwest::Client::builder()
+        .gzip(true)
+        .redirect(RedirectPolicy::none());
+
+    let mut cfg = Codeforces::new(client_builder).unwrap();
 
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
 
@@ -425,23 +402,21 @@ fn main() {
 
     let server_override = matches.value_of("server").unwrap_or("");
     if server_override != "" {
-        cfg.server_url = String::from(server_override);
+        cfg.server_url = Url::parse(server_override).unwrap_or_else(|e| {
+            error!("can not parse url {}: {}", server_override, e);
+            exit(1);
+        });
     }
 
-    let server_url = url::Url::parse(&cfg.server_url).unwrap_or_else(|err| {
-        error!("can not parse {} as server URL: {}", cfg.server_url, err);
-        exit(1);
-    });
-
-    match server_url.scheme() {
+    match cfg.server_url.scheme() {
         "http" | "https" => (),
         _ => {
-            error!("scheme {} is not implemented", server_url.scheme());
+            error!("scheme {} is not implemented", cfg.server_url.scheme());
             exit(1);
         }
     };
 
-    if server_url.host().is_none() {
+    if cfg.server_url.host().is_none() {
         error!("host is empty");
         exit(1);
     }
@@ -469,7 +444,7 @@ fn main() {
                 err
             );
         });
-        Some(cookie_dir.join(&cfg.identy))
+        Some(cookie_dir.join(format!("{}.json", &cfg.identy)))
     } else {
         None
     };
@@ -479,16 +454,6 @@ fn main() {
     } else {
         ""
     };
-    let ua = &cfg.user_agent;
-
-    // We don't use redirection following feature of reqwest.
-    // It will throw set-cookie the header of redirect response.
-    let client = reqwest::Client::builder()
-        .gzip(true)
-        .redirect(RedirectPolicy::none())
-        .build()
-        .unwrap();
-    cfg.client = Some(&client);
 
     if cfg.contest_path == "" {
         error!("no contest URL provided");
@@ -497,39 +462,30 @@ fn main() {
 
     cfg.contest_path += "/";
 
-    let contest_url = server_url.join(&cfg.contest_path).unwrap_or_else(|err| {
+    let contest_url = cfg.server_url.join(&cfg.contest_path).unwrap_or_else(|err| {
         error!("can not determine contest URL: {}", err);
         exit(1);
     });
     let submit_url = contest_url.join("submit").unwrap();
 
-    cfg.cookie = match &cookie_file {
-        Some(f) => maybe_load_cookie(f.as_path()),
-        None => String::new(),
+    match &cookie_file {
+        Some(f) => maybe_load_cookie(&mut cfg, f.as_path()),
+        _ => (),
     };
 
     let resp_try = http_get(&submit_url, &cfg);
+
+    // The cookie contains session ID so we should save it.
+    cfg.store_cookie(&resp_try).unwrap_or_else(|e|{
+        error!("can not store cookie: {}", e);
+        exit(1);
+    });
+
     let mut resp = if resp_try.status().is_redirection() {
         // We are redirected.
         info!("authentication required");
 
-        // Maybe we should update the cookie.
-        let s = resp_try
-            .cookies()
-            .map(|c| format!("{}={}", c.name(), c.value()))
-            .collect::<Vec<_>>()
-            .join("; ");
-
-        if s != "" {
-            debug!("new cookie string {} from server", s);
-            match &cookie_file {
-                Some(f) => maybe_save_cookie(&s, f),
-                _ => (),
-            };
-            cfg.cookie = s;
-        }
-
-        let login_url = server_url.join("enter").unwrap_or_else(|err| {
+        let login_url = cfg.server_url.join("enter").unwrap_or_else(|err| {
             error!("can not get login url: {}", err);
             exit(1);
         });
@@ -562,11 +518,8 @@ fn main() {
 
         info!("POST /enter");
         let resp = cfg
-            .client
-            .unwrap()
             .post(login_url.as_str())
-            .header(USER_AGENT, ua)
-            .header(COOKIE, &cfg.cookie)
+            .unwrap()
             .form(&params)
             .send()
             .unwrap_or_else(|err| {
@@ -577,6 +530,11 @@ fn main() {
             error!("POST /enter: status = {}", resp.status());
             exit(1);
         }
+
+        cfg.store_cookie(&resp).unwrap_or_else(|e|{
+            error!("can not save cookie: {}", e);
+            exit(1);
+        });
 
         // Retry to GET the submit page.
         let resp = http_get(&submit_url, &cfg);
@@ -590,6 +548,11 @@ fn main() {
         resp
     } else {
         resp_try
+    };
+
+    match &cookie_file {
+        Some(f) => maybe_save_cookie(&cfg, f),
+        _ => (),
     };
 
     let problem = match action {
@@ -628,11 +591,8 @@ fn main() {
 
     info!("POST {}", submit_url.path());
     let resp = cfg
-        .client
-        .unwrap()
         .post(submit_url.as_str())
-        .header(USER_AGENT, &cfg.user_agent)
-        .header(COOKIE, &cfg.cookie)
+        .unwrap()
         .multipart(form)
         .send()
         .unwrap_or_else(|err| {
