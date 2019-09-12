@@ -96,7 +96,7 @@ fn get_lang(cfg: &Codeforces, ext: &str) -> &'static str {
     }
 }
 
-fn maybe_save_cookie(s: &str, path: &std::path::Path) {
+fn maybe_save_cookie(cf: &Codeforces, path: &std::path::Path) {
     debug!("try saving cookie to cache {}", path.display());
 
     let f = std::fs::OpenOptions::new()
@@ -116,8 +116,7 @@ fn maybe_save_cookie(s: &str, path: &std::path::Path) {
             return;
         }
         Ok(mut f) => {
-            use std::io::Write;
-            if let Err(e) = f.write(s.as_bytes()) {
+            if let Err(e) = cf.save_cookie(&mut f) {
                 error!("can not write into cache file {}: {}", path.display(), e);
             } else {
                 info!("cookie saved to cache {}", path.display());
@@ -126,10 +125,9 @@ fn maybe_save_cookie(s: &str, path: &std::path::Path) {
     }
 }
 
-fn maybe_load_cookie(path: &std::path::Path) -> String {
+fn maybe_load_cookie(cf: &mut Codeforces, path: &std::path::Path) {
     debug!("try loading cookie from cache {}", path.display());
 
-    let mut s = String::new();
     if path.exists() {
         let f = std::fs::File::open(path).unwrap_or_else(|err| {
             error!(
@@ -139,15 +137,15 @@ fn maybe_load_cookie(path: &std::path::Path) -> String {
             );
             exit(1);
         });
-        use std::io::{BufRead, BufReader};
-        BufReader::new(f).read_line(&mut s).unwrap_or_else(|err| {
+        use std::io::BufReader;
+        let r = BufReader::new(f);
+        cf.load_cookie(r).unwrap_or_else(|err| {
             error!("can not read cache file: {}", err);
             exit(1);
         });
     } else {
         info!("cookie cache {} does not exist", path.display());
     }
-    s
 }
 
 fn print_verdict(resp: &mut Response) -> bool {
@@ -410,17 +408,15 @@ fn main() {
         });
     }
 
-    let server_url = &cfg.server_url;
-
-    match server_url.scheme() {
+    match cfg.server_url.scheme() {
         "http" | "https" => (),
         _ => {
-            error!("scheme {} is not implemented", server_url.scheme());
+            error!("scheme {} is not implemented", cfg.server_url.scheme());
             exit(1);
         }
     };
 
-    if server_url.host().is_none() {
+    if cfg.server_url.host().is_none() {
         error!("host is empty");
         exit(1);
     }
@@ -448,7 +444,7 @@ fn main() {
                 err
             );
         });
-        Some(cookie_dir.join(&cfg.identy))
+        Some(cookie_dir.join(format!("{}.json", &cfg.identy)))
     } else {
         None
     };
@@ -466,39 +462,30 @@ fn main() {
 
     cfg.contest_path += "/";
 
-    let contest_url = server_url.join(&cfg.contest_path).unwrap_or_else(|err| {
+    let contest_url = cfg.server_url.join(&cfg.contest_path).unwrap_or_else(|err| {
         error!("can not determine contest URL: {}", err);
         exit(1);
     });
     let submit_url = contest_url.join("submit").unwrap();
 
-    cfg.cookie = match &cookie_file {
-        Some(f) => maybe_load_cookie(f.as_path()),
-        None => String::new(),
+    match &cookie_file {
+        Some(f) => maybe_load_cookie(&mut cfg, f.as_path()),
+        _ => (),
     };
 
     let resp_try = http_get(&submit_url, &cfg);
+
+    // The cookie contains session ID so we should save it.
+    cfg.store_cookie(&resp_try).unwrap_or_else(|e|{
+        error!("can not store cookie: {}", e);
+        exit(1);
+    });
+
     let mut resp = if resp_try.status().is_redirection() {
         // We are redirected.
         info!("authentication required");
 
-        // Maybe we should update the cookie.
-        let s = resp_try
-            .cookies()
-            .map(|c| format!("{}={}", c.name(), c.value()))
-            .collect::<Vec<_>>()
-            .join("; ");
-
-        if s != "" {
-            debug!("new cookie string {} from server", s);
-            match &cookie_file {
-                Some(f) => maybe_save_cookie(&s, f),
-                _ => (),
-            };
-            cfg.cookie = s;
-        }
-
-        let login_url = server_url.join("enter").unwrap_or_else(|err| {
+        let login_url = cfg.server_url.join("enter").unwrap_or_else(|err| {
             error!("can not get login url: {}", err);
             exit(1);
         });
@@ -543,6 +530,11 @@ fn main() {
             exit(1);
         }
 
+        cfg.store_cookie(&resp).unwrap_or_else(|e|{
+            error!("can not save cookie: {}", e);
+            exit(1);
+        });
+
         // Retry to GET the submit page.
         let resp = http_get(&submit_url, &cfg);
         if resp.status().is_redirection() {
@@ -555,6 +547,11 @@ fn main() {
         resp
     } else {
         resp_try
+    };
+
+    match &cookie_file {
+        Some(f) => maybe_save_cookie(&cfg, f),
+        _ => (),
     };
 
     let problem = match action {
