@@ -196,7 +196,7 @@ enum Action {
 fn main() {
     use clap::{App, Arg};
     let matches = App::new("XDU-ICPC cftool")
-        .version("0.1.1")
+        .version("0.2.0")
         .author("Xi Ruoyao <xry111@mengyan1223.wang>")
         .about("A command line tool for submitting code to Codeforces")
         .arg(
@@ -281,7 +281,7 @@ fn main() {
         .init()
         .unwrap();
 
-    info!("{}", "this is XDU-ICPC cftool, version 0.1.1");
+    info!("{}", "this is XDU-ICPC cftool, version 0.2.0");
 
     let mut action = Action::None;
 
