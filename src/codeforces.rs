@@ -134,18 +134,18 @@ impl Codeforces {
         }
     }
 
+    fn add_header(&self, b: RequestBuilder) -> RequestBuilder {
+        b.header(USER_AGENT, &self.user_agent)
+            .header(COOKIE, &self.cookie)
+    }
+
     pub fn get<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
         use error::*;
         let u = self
             .server_url
             .join(p.as_ref())
             .chain_err(|| "can not build a URL from the path")?;
-        let b = self
-            .client
-            .get(u.as_str())
-            .header(USER_AGENT, &self.user_agent)
-            .header(COOKIE, &self.cookie);
-        Ok(b)
+        Ok(self.add_header(self.client.get(u.as_str())))
     }
 
     pub fn post<P: AsRef<str>>(&self, p: P) -> error::Result<RequestBuilder> {
@@ -154,11 +154,6 @@ impl Codeforces {
             .server_url
             .join(p.as_ref())
             .chain_err(|| "can not build a URL from the path")?;
-        let b = self
-            .client
-            .get(u.as_str())
-            .header(USER_AGENT, &self.user_agent)
-            .header(COOKIE, &self.cookie);
-        Ok(b)
+        Ok(self.add_header(self.client.post(u.as_str())))
     }
 }

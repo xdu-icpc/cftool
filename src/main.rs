@@ -2,7 +2,7 @@ mod codeforces;
 mod verdict;
 use codeforces::Codeforces;
 use log::{debug, error, info, warn};
-use reqwest::{RedirectPolicy, RequestBuilder, Response};
+use reqwest::{RedirectPolicy, Response};
 use std::error::Error;
 use std::process::exit;
 use url::Url;
