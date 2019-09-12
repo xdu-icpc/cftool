@@ -543,7 +543,8 @@ fn main() {
         debug!("CSRF token for /enter is {}", csrf);
 
         // Read password
-        let passwd = rpassword::prompt_password_stderr("Password: ").unwrap_or_else(|err| {
+        let prompt = format!("[cftool] password for {}: ", &cfg.identy);
+        let passwd = rpassword::prompt_password_stderr(&prompt).unwrap_or_else(|err| {
             error!("failed reading password: {}", err);
             exit(1);
         });
