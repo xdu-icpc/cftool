@@ -606,6 +606,7 @@ fn main() {
         .text("programTypeId", lang)
         .text("source", "")
         .text("tabSize", "4")
+        .text("sourceCodeConfirmed", "true")
         .part("sourceFile", src);
 
     info!("POST {}", submit_url.path());
