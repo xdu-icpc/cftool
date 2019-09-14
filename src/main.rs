@@ -251,7 +251,7 @@ fn main() {
                 .short("l")
                 .takes_value(false)
                 .help(
-                    "Polling the last submission until it's judged,\
+                    "Polling the last submission until it's judged, \
                      implies -q if -p is not used",
                 ),
         )
