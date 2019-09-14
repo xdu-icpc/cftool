@@ -620,7 +620,11 @@ fn main() {
             exit(1);
         });
 
-    if !resp.status().is_success() && !resp.status().is_redirection() {
+    if !resp.status().is_redirection() {
+        if resp.status().is_success() {
+            error!("Codeforces doesn't like the code, please recheck");
+            exit(1);
+        }
         error!("POST {} failed with status: {}", submit_url, resp.status());
         exit(1);
     }
