@@ -33,6 +33,7 @@ pub struct Codeforces {
     pub cookie_file: Option<String>,
     cookie_store: CookieStore,
     client: reqwest::Client,
+    pub no_color: bool,
 }
 
 impl Codeforces {
@@ -49,6 +50,7 @@ impl Codeforces {
             cookie_file: None,
             cookie_store: Default::default(),
             client: b.build().chain_err(|| "can not build HTTP client")?,
+            no_color: false,
         };
         Ok(cf)
     }

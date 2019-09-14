@@ -148,19 +148,29 @@ fn maybe_load_cookie(cf: &mut Codeforces, path: &std::path::Path) {
     }
 }
 
-fn print_verdict(resp: &mut Response) -> verdict::Verdict {
+fn print_verdict(resp: &mut Response, color: bool) -> verdict::Verdict {
     use termcolor::ColorChoice::Auto;
-    use termcolor::StandardStream;
+    use termcolor::{Buffer, BufferWriter};
     use verdict::Verdict;
-    let mut w = StandardStream::stdout(Auto);
+    let w = BufferWriter::stdout(Auto);
+    let mut buf = if color {
+        w.buffer()
+    } else {
+        Buffer::no_color()
+    };
 
     let v = Verdict::parse(resp).unwrap_or_else(|e| {
         error!("can not get verdict from response: {}", e);
         exit(1);
     });
 
-    v.print(&mut w).unwrap_or_else(|e| {
-        error!("can not print verdict: {}", e);
+    v.print(&mut buf).unwrap_or_else(|e| {
+        error!("can not buffer verdict: {}", e);
+        exit(1);
+    });
+
+    w.print(&buf).unwrap_or_else(|e| {
+        error!("can not output verdict: {}", e);
         exit(1);
     });
 
@@ -209,7 +219,7 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
         let mut resp = http_get(url, cfg);
-        let v = print_verdict(&mut resp);
+        let v = print_verdict(&mut resp, !cfg.no_color);
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
@@ -336,6 +346,13 @@ fn main() {
                 .help("Cookie cache file, overriding the default")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("no-color")
+                .takes_value(false)
+                .long("no-color")
+                .short("w")
+                .help("Do not use color for verdict"),
+        )
         .get_matches();
 
     let v = matches.occurrences_of("v") as usize;
@@ -413,6 +430,10 @@ fn main() {
         .redirect(RedirectPolicy::none());
 
     let mut cfg = Codeforces::new(client_builder).unwrap();
+
+    if matches.occurrences_of("no-color") > 0 {
+        cfg.no_color = true;
+    }
 
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
 
