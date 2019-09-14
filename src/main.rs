@@ -287,6 +287,14 @@ fn main() {
                 .help("Language dialect, overriding config and filename")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("cookie")
+                .value_name("FILE")
+                .long("cookie")
+                .short("k")
+                .help("Cookie cache file, overriding the default")
+                .takes_value(true),
+        )
         .get_matches();
 
     let v = matches.occurrences_of("v") as usize;
@@ -447,16 +455,20 @@ fn main() {
     }
 
     let cookie_file = if !cfg.no_cookie {
-        let dir = project_dirs.unwrap();
-        let cookie_dir = dir.cache_dir().join("cookie");
-        std::fs::create_dir_all(&cookie_dir).unwrap_or_else(|err| {
-            error!(
-                "can not create cache dir {}: {}",
-                cookie_dir.to_string_lossy(),
-                err
-            );
-        });
-        Some(cookie_dir.join(format!("{}.json", &cfg.identy)))
+        if let Some(path) = matches.value_of("cookie") {
+            Some(std::path::PathBuf::from(path))
+        } else {
+            let dir = project_dirs.unwrap();
+            let cookie_dir = dir.cache_dir().join("cookie");
+            std::fs::create_dir_all(&cookie_dir).unwrap_or_else(|err| {
+                error!(
+                    "can not create cache dir {}: {}",
+                    cookie_dir.to_string_lossy(),
+                    err
+                );
+            });
+            Some(cookie_dir.join(format!("{}.json", &cfg.identy)))
+        }
     } else {
         None
     };
@@ -488,7 +500,7 @@ fn main() {
     let submit_url = contest_url.join("submit").unwrap();
 
     match &cookie_file {
-        Some(f) => maybe_load_cookie(&mut cfg, f.as_path()),
+        Some(f) => maybe_load_cookie(&mut cfg, f),
         _ => (),
     };
 
