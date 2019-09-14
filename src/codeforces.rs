@@ -30,7 +30,6 @@ pub struct Codeforces {
     pub prefer_py: String,
     pub retry_limit: i64,
     pub no_cookie: bool,
-    pub cookie: String,
     cookie_store: CookieStore,
     client: reqwest::Client,
 }
@@ -46,7 +45,6 @@ impl Codeforces {
             prefer_py: String::from("py3"),
             retry_limit: 3,
             no_cookie: false,
-            cookie: String::from(""),
             cookie_store: Default::default(),
             client: b.build().chain_err(|| "can not build HTTP client")?,
         };
