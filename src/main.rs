@@ -224,7 +224,8 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
 
         if v.is_compilation_error() {
             let s = get_ce_info(cfg, v.get_id());
-            println!("{}", unescape::Unescape(&s));
+            println!("{}", "===================================");
+            print!("{}", unescape::Unescape(&s));
         }
 
         if !wait {
