@@ -30,6 +30,7 @@ pub struct Codeforces {
     pub prefer_py: String,
     pub retry_limit: i64,
     pub no_cookie: bool,
+    pub cookie_file: Option<String>,
     cookie_store: CookieStore,
     client: reqwest::Client,
 }
@@ -45,6 +46,7 @@ impl Codeforces {
             prefer_py: String::from("py3"),
             retry_limit: 3,
             no_cookie: false,
+            cookie_file: None,
             cookie_store: Default::default(),
             client: b.build().chain_err(|| "can not build HTTP client")?,
         };
@@ -92,6 +94,11 @@ impl Codeforces {
 
         match &v["prefer_py"] {
             Value::String(s) => self.prefer_py = s.to_string(),
+            _ => (),
+        }
+
+        match &v["cookie_file"] {
+            Value::String(s) => self.cookie_file = Some(s.to_string()),
             _ => (),
         }
 

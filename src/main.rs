@@ -454,8 +454,12 @@ fn main() {
         cfg.no_cookie = true;
     }
 
+    if let Some(path) = matches.value_of("cookie") {
+        cfg.cookie_file = Some(path.to_string());
+    }
+
     let cookie_file = if !cfg.no_cookie {
-        if let Some(path) = matches.value_of("cookie") {
+        if let Some(path) = &cfg.cookie_file {
             Some(std::path::PathBuf::from(path))
         } else {
             let dir = project_dirs.unwrap();
