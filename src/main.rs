@@ -272,6 +272,14 @@ fn main() {
                 .help("Server URL, overriding the config files")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("identy")
+                .value_name("IDENTY")
+                .long("identy")
+                .short("i")
+                .help("Identy, handle or email, overriding the config files")
+                .takes_value(true),
+        )
         .get_matches();
 
     let v = matches.occurrences_of("v") as usize;
@@ -419,6 +427,11 @@ fn main() {
     if cfg.server_url.host().is_none() {
         error!("host is empty");
         exit(1);
+    }
+
+    let identy_arg = matches.value_of("identy").unwrap_or("");
+    if identy_arg != "" {
+        cfg.identy = String::from(identy_arg);
     }
 
     if cfg.identy == "" {
