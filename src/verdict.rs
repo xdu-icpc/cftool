@@ -11,15 +11,31 @@ impl std::fmt::Display for ParseError {
     }
 }
 
-pub enum Verdict {
-    Accepted(String),
-    Rejected(String),
-    Waiting(String),
+pub enum VerdictCode {
+    Accepted,
+    Rejected,
+    Waiting,
+    CompilationError,
+}
+
+pub struct Verdict {
+    code: VerdictCode,
+    id: String,
+    msg: String,
 }
 
 impl Verdict {
+    fn new<U: ToString, V: ToString>(code: VerdictCode, msg: U, id: V) -> Self {
+        Verdict {
+            code: code,
+            msg: msg.to_string(),
+            id: id.to_string(),
+        }
+    }
+
     pub fn parse(resp: &mut reqwest::Response) -> Result<Self, Box<dyn Error>> {
         use regex::Regex;
+        use VerdictCode::*;
 
         // The line containing <td> mark is same in coach mode and normal
         // mode, but the next line containing the actual verdict is not.
@@ -36,32 +52,27 @@ impl Verdict {
 
         if line.contains("Compilation error") {
             // Special case it because the CSS style is different.
-            let id_msg = format!("{}: Compilation error", id);
-            return Ok(Verdict::Rejected(id_msg));
+            return Ok(Verdict::new(CompilationError, "Compilation error", id));
         }
 
         if line.contains("In queue") {
             // Likewise.
-            let id_msg = format!("{}: In queue", id);
-            return Ok(Verdict::Waiting(id_msg));
+            return Ok(Verdict::new(Waiting, "In queue", id));
         }
 
         if line.contains("Pending judgement") {
             // Likewise.
-            let id_msg = format!("{}: Pending judgement", id);
-            return Ok(Verdict::Waiting(id_msg));
+            return Ok(Verdict::new(Waiting, "Pending judgement", id));
         }
 
         if line.contains("Partial") {
             // Likewise.
-            let id_msg = format!("{}: Partial", id);
-            return Ok(Verdict::Rejected(id_msg));
+            return Ok(Verdict::new(Rejected, "Partial", id));
         }
 
         if line.contains("Skipped") {
             // Likewise.
-            let id_msg = format!("{}: Skipped", id);
-            return Ok(Verdict::Rejected(id_msg));
+            return Ok(Verdict::new(Rejected, "Skipped", id));
         }
 
         let re =
@@ -76,34 +87,31 @@ impl Verdict {
         let re = Regex::new(r"<.[^>]*>").unwrap();
         let clean_msg = re.replace_all(message, "");
 
-        let id_msg = format!("{} {}", id, clean_msg);
-
-        Ok(match &caps["verdict"] {
-            "accepted" => Verdict::Accepted(id_msg),
-            "rejected" | "failed" => Verdict::Rejected(id_msg),
-            "waiting" => Verdict::Waiting(id_msg),
+        let code = match &caps["verdict"] {
+            "accepted" => Accepted,
+            "rejected" | "failed" => Rejected,
+            "waiting" => Waiting,
             _ => return Err(Box::new(ParseError {})),
-        })
+        };
+
+        Ok(Verdict::new(code, clean_msg, id))
     }
 
     pub fn print<W: termcolor::WriteColor>(&self, w: &mut W) -> std::io::Result<()> {
         use termcolor::Color::{Green, Red};
         use termcolor::ColorSpec;
+        use VerdictCode::*;
         let use_color = w.supports_color();
         if use_color {
-            let color = match self {
-                Verdict::Accepted(_) => Some(Green),
-                Verdict::Rejected(_) => Some(Red),
-                Verdict::Waiting(_) => None,
+            let color = match &self.code {
+                Accepted => Some(Green),
+                Rejected | CompilationError => Some(Red),
+                Waiting => None,
             };
             w.set_color(ColorSpec::new().set_fg(color))?;
         }
 
-        let msg = match self {
-            Verdict::Accepted(s) => s,
-            Verdict::Rejected(s) => s,
-            Verdict::Waiting(s) => s,
-        };
+        let msg = format!("{} {}", self.id, self.msg);
 
         w.write(msg.as_bytes())?;
         if use_color {
@@ -111,5 +119,12 @@ impl Verdict {
         }
         w.write(b"\n")?;
         Ok(())
+    }
+
+    pub fn is_waiting(&self) -> bool {
+        match self.code {
+            VerdictCode::Waiting => true,
+            _ => false,
+        }
     }
 }

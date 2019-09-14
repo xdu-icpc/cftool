@@ -163,10 +163,7 @@ fn print_verdict(resp: &mut Response) -> bool {
         exit(1);
     });
 
-    match v {
-        Verdict::Waiting(_) => true,
-        _ => false,
-    }
+    v.is_waiting()
 }
 
 fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
