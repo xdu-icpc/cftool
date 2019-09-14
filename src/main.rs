@@ -1,4 +1,5 @@
 mod codeforces;
+mod unescape;
 mod verdict;
 use codeforces::Codeforces;
 use log::{debug, error, info, warn};
@@ -147,7 +148,7 @@ fn maybe_load_cookie(cf: &mut Codeforces, path: &std::path::Path) {
     }
 }
 
-fn print_verdict(resp: &mut Response) -> bool {
+fn print_verdict(resp: &mut Response) -> verdict::Verdict {
     use termcolor::ColorChoice::Auto;
     use termcolor::StandardStream;
     use verdict::Verdict;
@@ -163,7 +164,43 @@ fn print_verdict(resp: &mut Response) -> bool {
         exit(1);
     });
 
-    v.is_waiting()
+    v
+}
+
+fn get_ce_info(cf: &Codeforces, id: &str) -> String {
+    let u = cf
+        .get_contest_url()
+        .unwrap()
+        .join("submission/")
+        .unwrap()
+        .join(id);
+
+    if u.is_err() {
+        error!("can not get submission URL: {}", u.unwrap_err());
+        return String::new();
+    }
+    let u = u.unwrap();
+
+    let mut resp = http_get(&u, cf);
+
+    use regex::Regex;
+    let re = Regex::new(
+        r"<div class=.name.>Checker comment</div>.[^<]*<div class=.text.><pre>(?P<msg>[^<]*)",
+    )
+    .unwrap();
+
+    let txt = resp.text().unwrap_or_else(|e| {
+        error!("can not get response text: {}", e);
+        return String::new();
+    });
+
+    let caps = match re.captures(&txt) {
+        Some(c) => c,
+        None => return String::new(),
+    };
+
+    let msg = &caps["msg"];
+    String::from(msg)
 }
 
 fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
@@ -172,7 +209,14 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
         let mut resp = http_get(url, cfg);
-        wait = print_verdict(&mut resp) && poll;
+        let v = print_verdict(&mut resp);
+        wait = v.is_waiting() && poll;
+
+        if v.is_compilation_error() {
+            let s = get_ce_info(cfg, v.get_id());
+            println!("{}", unescape::Unescape(&s));
+        }
+
         if !wait {
             break;
         }
@@ -409,7 +453,10 @@ fn main() {
 
     let contest_override = matches.value_of("contest").unwrap_or("");
     if contest_override != "" {
-        cfg.contest_path = String::from(contest_override);
+        cfg.set_contest_path(contest_override).unwrap_or_else(|e| {
+            error!("can not set contest path: {}", e);
+            exit(1);
+        });
     }
 
     let server_override = matches.value_of("server").unwrap_or("");
@@ -484,21 +531,12 @@ fn main() {
         ""
     };
 
-    if cfg.contest_path == "" {
+    if cfg.get_contest_path().is_none() {
         error!("no contest URL provided");
         exit(1);
     }
 
-    cfg.contest_path += "/";
-
-    let contest_url = cfg
-        .server_url
-        .join(&cfg.contest_path)
-        .unwrap_or_else(|err| {
-            error!("can not determine contest URL: {}", err);
-            exit(1);
-        });
-    let submit_url = contest_url.join("submit").unwrap();
+    let submit_url = cfg.get_contest_url().unwrap().join("submit").unwrap();
 
     match &cookie_file {
         Some(f) => maybe_load_cookie(&mut cfg, f),
@@ -591,7 +629,7 @@ fn main() {
         Action::Submit(p) => p,
         Action::Dry => exit(0),
         Action::Query => {
-            let my_url = contest_url.join("my").unwrap();
+            let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
             poll_or_query_verdict(&my_url, &cfg, false);
             exit(0);
         }
@@ -643,7 +681,7 @@ fn main() {
     }
 
     if need_poll {
-        let my_url = contest_url.join("my").unwrap();
+        let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
         poll_or_query_verdict(&my_url, &cfg, true);
     }
 }

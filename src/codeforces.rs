@@ -24,7 +24,7 @@ fn user_agent() -> &'static str {
 pub struct Codeforces {
     pub server_url: Url,
     pub identy: String,
-    pub contest_path: String,
+    contest_url: Option<Url>,
     pub user_agent: String,
     pub prefer_cxx: String,
     pub prefer_py: String,
@@ -40,7 +40,7 @@ impl Codeforces {
         let cf = Codeforces {
             server_url: Url::parse("https://codeforces.com").unwrap(),
             identy: String::from(""),
-            contest_path: String::from(""),
+            contest_url: None,
             user_agent: String::from(user_agent()),
             prefer_cxx: String::from("c++17"),
             prefer_py: String::from("py3"),
@@ -51,6 +51,27 @@ impl Codeforces {
             client: b.build().chain_err(|| "can not build HTTP client")?,
         };
         Ok(cf)
+    }
+
+    pub fn set_contest_path<S: ToString>(&mut self, s: S) -> Result<()> {
+        let p = s.to_string() + "/";
+        let u = self
+            .server_url
+            .join(&p)
+            .chain_err(|| "can not build a legal URL from the contest path")?;
+        self.contest_url = Some(u);
+        Ok(())
+    }
+
+    pub fn get_contest_path(&self) -> Option<&str> {
+        match &self.contest_url {
+            Some(u) => Some(u.path()),
+            None => None,
+        }
+    }
+
+    pub fn get_contest_url(&self) -> Option<&Url> {
+        self.contest_url.as_ref()
     }
 
     // Override some config options from JSON config file.
@@ -74,11 +95,6 @@ impl Codeforces {
 
         match &v["identy"] {
             Value::String(s) => self.identy = s.to_string(),
-            _ => (),
-        };
-
-        match &v["contest_path"] {
-            Value::String(s) => self.contest_path = s.to_string(),
             _ => (),
         };
 

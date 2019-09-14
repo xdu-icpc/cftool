@@ -127,4 +127,15 @@ impl Verdict {
             _ => false,
         }
     }
+
+    pub fn is_compilation_error(&self) -> bool {
+        match self.code {
+            VerdictCode::CompilationError => true,
+            _ => false,
+        }
+    }
+
+    pub fn get_id(&self) -> &str {
+        &self.id
+    }
 }
