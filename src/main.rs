@@ -61,39 +61,38 @@ fn override_config(cfg: &mut Codeforces, p: &std::path::Path) {
     info!("loaded custom config file {}", p.display());
 }
 
-fn get_lang(cfg: &Codeforces, ext: &str) -> &'static str {
-    let lang_cxx = match cfg.prefer_cxx.as_str() {
+fn get_lang_dialect(dialect: &str) -> &'static str {
+    match dialect {
+        "c" => "43",
         "c++17" => "54",
         "c++14" => "50",
         "c++11" => "42",
-        _ => {
-            error!("prefer_cxx must be one of c++17, c++14, or c++11");
-            exit(1);
-        }
-    };
-
-    let lang_py = match cfg.prefer_py.as_str() {
         "py3" => "31",
         "py2" => "7",
         "pypy3" => "41",
         "pypy2" => "40",
+        "rust" => "49",
+        "java" => "36",
         _ => {
-            error!("prefer_py must be one of py3, py2, pypy3, or pypy2");
+            error!("don't know dialect {}", dialect);
             exit(1);
         }
-    };
+    }
+}
 
-    match ext {
-        "c" => "43",
-        "cc" | "cp" | "cxx" | "cpp" | "CPP" | "c++" | "C" => lang_cxx,
-        "py" => lang_py,
-        "rs" => "49",
-        "java" => "36",
+fn get_lang_ext(cfg: &Codeforces, ext: &str) -> &'static str {
+    let dialect = match ext {
+        "c" => "c",
+        "cc" | "cp" | "cxx" | "cpp" | "CPP" | "c++" | "C" => cfg.prefer_cxx.as_str(),
+        "py" => cfg.prefer_py.as_str(),
+        "rs" => "rust",
+        "java" => "java",
         _ => {
             error!("don't know extension {}", ext);
             exit(1);
         }
-    }
+    };
+    get_lang_dialect(dialect)
 }
 
 fn maybe_save_cookie(cf: &Codeforces, path: &std::path::Path) {
@@ -280,6 +279,14 @@ fn main() {
                 .help("Identy, handle or email, overriding the config files")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("dialect")
+                .value_name("DIALECT")
+                .long("dialect")
+                .short("a")
+                .help("Language dialect, overriding config and filename")
+                .takes_value(true),
+        )
         .get_matches();
 
     let v = matches.occurrences_of("v") as usize;
@@ -335,25 +342,17 @@ fn main() {
 
     let source = matches.value_of("source").unwrap_or("");
     let ext = if let Action::Submit(_) = action {
-        std::path::Path::new(source)
-            .extension()
-            .unwrap_or_else(|| {
-                error!(
-                    "no extension in filename {}, \
-                     can not determine the language",
-                    source
-                );
-                exit(1);
-            })
-            .to_str()
-            .unwrap_or_else(|| {
+        match std::path::Path::new(source).extension() {
+            Some(e) => e.to_str().unwrap_or_else(|| {
                 error!(
                     "extension of {} is not valid UTF-8, \
                      can not determine the language",
                     source
                 );
                 exit(1);
-            })
+            }),
+            None => "",
+        }
     } else {
         ""
     };
@@ -463,7 +462,11 @@ fn main() {
     };
 
     let lang = if let Action::Submit(_) = action {
-        get_lang(&cfg, ext)
+        if let Some(d) = matches.value_of("dialect") {
+            get_lang_dialect(d)
+        } else {
+            get_lang_ext(&cfg, ext)
+        }
     } else {
         ""
     };
