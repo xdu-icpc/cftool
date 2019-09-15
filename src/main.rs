@@ -1,5 +1,4 @@
 mod codeforces;
-mod unescape;
 mod verdict;
 use codeforces::Codeforces;
 use log::{debug, error, info, warn};
@@ -19,20 +18,24 @@ impl std::fmt::Display for CSRFError {
     }
 }
 
-fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
+fn get_csrf_token_str(txt: &str) -> Result<String, CSRFError> {
     use regex::Regex;
     let re = Regex::new(r"meta name=.X-Csrf-Token. content=.(.*)./>").unwrap();
-    let txt = resp.text()?;
-    let cap = re.captures(&txt);
+    let cap = re.captures(txt);
     let cap = match cap {
         Some(cap) => cap,
-        None => return Err(Box::new(CSRFError {})),
+        None => return Err(CSRFError {}),
     };
     let csrf = match cap.get(1) {
         Some(csrf) => csrf.as_str(),
-        None => return Err(Box::new(CSRFError {})),
+        None => return Err(CSRFError {}),
     };
     Ok(String::from(csrf))
+}
+
+fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
+    let txt = resp.text()?;
+    Ok(get_csrf_token_str(&txt)?)
 }
 
 fn http_get(url: &Url, cfg: &Codeforces) -> Response {
@@ -148,7 +151,7 @@ fn maybe_load_cookie(cf: &mut Codeforces, path: &std::path::Path) {
     }
 }
 
-fn print_verdict(resp: &mut Response, color: bool) -> verdict::Verdict {
+fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
     use termcolor::ColorChoice::Auto;
     use termcolor::{Buffer, BufferWriter};
     use verdict::Verdict;
@@ -159,7 +162,7 @@ fn print_verdict(resp: &mut Response, color: bool) -> verdict::Verdict {
         Buffer::no_color()
     };
 
-    let v = Verdict::parse(resp).unwrap_or_else(|e| {
+    let v = Verdict::parse(resp_text).unwrap_or_else(|e| {
         error!("can not get verdict from response: {}", e);
         exit(1);
     });
@@ -177,40 +180,11 @@ fn print_verdict(resp: &mut Response, color: bool) -> verdict::Verdict {
     v
 }
 
-fn get_ce_info(cf: &Codeforces, id: &str) -> String {
-    let u = cf
-        .get_contest_url()
-        .unwrap()
-        .join("submission/")
-        .unwrap()
-        .join(id);
-
-    if u.is_err() {
-        error!("can not get submission URL: {}", u.unwrap_err());
-        return String::new();
-    }
-    let u = u.unwrap();
-
-    let mut resp = http_get(&u, cf);
-
-    use regex::Regex;
-    let re = Regex::new(
-        r"<div class=.name.>Checker comment</div>.[^<]*<div class=.text.><pre>(?P<msg>[^<]*)",
-    )
-    .unwrap();
-
-    let txt = resp.text().unwrap_or_else(|e| {
-        error!("can not get response text: {}", e);
-        return String::new();
-    });
-
-    let caps = match re.captures(&txt) {
-        Some(c) => c,
-        None => return String::new(),
-    };
-
-    let msg = &caps["msg"];
-    String::from(msg)
+fn get_ce_info(cf: &Codeforces, id: &str, csrf: &str) -> String {
+    cf.judgement_protocol(id, csrf).unwrap_or_else(|e| {
+        error!("can not get compilation error info: {}", e);
+        String::new()
+    })
 }
 
 fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
@@ -219,13 +193,24 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
         let mut resp = http_get(url, cfg);
-        let v = print_verdict(&mut resp, !cfg.no_color);
+        let txt = resp.text().unwrap_or_else(|e| {
+            error!("can not parse response body into text: {}", e);
+            exit(1);
+        });
+        let v = print_verdict(&txt, !cfg.no_color);
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
-            let s = get_ce_info(cfg, v.get_id());
+            let csrf = get_csrf_token_str(&txt);
+            if let Err(e) = csrf {
+                error!("can not get csrf token: {}", e);
+                error!("skip compilation error info");
+                return;
+            }
+
+            let s = get_ce_info(cfg, v.get_id(), &csrf.unwrap());
             println!("{}", "===================================");
-            print!("{}", unescape::Unescape(&s));
+            print!("{}", s);
         }
 
         if !wait {

@@ -217,4 +217,24 @@ impl Codeforces {
         };
         Ok(())
     }
+
+    pub fn judgement_protocol(&self, id: &str, csrf: &str) -> Result<String> {
+        let u = self
+            .server_url
+            .join("data/")
+            .unwrap()
+            .join("judgeProtocol")
+            .unwrap();
+        let mut params = std::collections::HashMap::new();
+        params.insert("submissionId", id);
+        params.insert("csrf_token", csrf);
+
+        let post = self
+            .post(u.as_str())
+            .chain_err(|| "can not build XHR request")?
+            .form(&params);
+
+        let mut resp = post.send().chain_err(|| "can not send XHR request")?;
+        resp.json().chain_err(|| "can not parse XHR response")
+    }
 }
