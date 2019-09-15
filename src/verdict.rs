@@ -33,7 +33,7 @@ impl Verdict {
         }
     }
 
-    pub fn parse(resp: &mut reqwest::Response) -> Result<Self, Box<dyn Error>> {
+    pub fn parse(txt: &str) -> Result<Self, Box<dyn Error>> {
         use regex::Regex;
         use VerdictCode::*;
 
@@ -42,8 +42,7 @@ impl Verdict {
         // So we have to match the previous line :(.
         let re = Regex::new(r"<td party[^>]* class=[^>]*status-verdict-cell.*submissionId=.(?P<id>[0-9]*).*\n(?P<line>.*)\n")
             .unwrap();
-        let txt = resp.text()?;
-        let caps = match re.captures(&txt) {
+        let caps = match re.captures(txt) {
             Some(c) => c,
             None => return Err(Box::new(ParseError {})),
         };

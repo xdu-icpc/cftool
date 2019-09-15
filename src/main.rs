@@ -148,7 +148,7 @@ fn maybe_load_cookie(cf: &mut Codeforces, path: &std::path::Path) {
     }
 }
 
-fn print_verdict(resp: &mut Response, color: bool) -> verdict::Verdict {
+fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
     use termcolor::ColorChoice::Auto;
     use termcolor::{Buffer, BufferWriter};
     use verdict::Verdict;
@@ -159,7 +159,7 @@ fn print_verdict(resp: &mut Response, color: bool) -> verdict::Verdict {
         Buffer::no_color()
     };
 
-    let v = Verdict::parse(resp).unwrap_or_else(|e| {
+    let v = Verdict::parse(resp_text).unwrap_or_else(|e| {
         error!("can not get verdict from response: {}", e);
         exit(1);
     });
@@ -219,7 +219,11 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
         let mut resp = http_get(url, cfg);
-        let v = print_verdict(&mut resp, !cfg.no_color);
+        let txt = resp.text().unwrap_or_else(|e| {
+            error!("can not parse response body into text: {}", e);
+            exit(1);
+        });
+        let v = print_verdict(&txt, !cfg.no_color);
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
