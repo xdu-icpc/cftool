@@ -182,6 +182,12 @@ fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
 }
 
 fn get_ce_info(cf: &Codeforces, id: &str, csrf: &str) -> String {
+    return cf.judgement_protocol(id, csrf).unwrap_or_else(
+        |e| {
+            error!("can not get compilation error info: {}", e);
+            String::new()
+        }
+    );
     let u = cf
         .get_contest_url()
         .unwrap()
@@ -233,7 +239,8 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
         if v.is_compilation_error() {
             let csrf = get_csrf_token_str(&txt);
             if let Err(e) = csrf {
-                error!("can not get csrf token, skip compile error info");
+                error!("can not get csrf token: {}", e);
+                error!("skip compilation error info");
                 return;
             }
 

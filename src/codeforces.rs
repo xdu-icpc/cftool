@@ -1,7 +1,7 @@
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
-use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
+use reqwest::header::{ACCEPT, COOKIE, SET_COOKIE, USER_AGENT};
 use reqwest::{ClientBuilder, RequestBuilder, Response};
 use std::io::{BufRead, Write};
 use std::path::Path;
@@ -216,5 +216,23 @@ impl Codeforces {
             Ok(c) => self.cookie_store = c,
         };
         Ok(())
+    }
+
+    pub fn judgement_protocol(&self, id: &str, csrf: &str) -> Result<String> {
+        println!("{} {}", id, csrf);
+        let u = self.server_url.join("data/")
+            .unwrap()
+            .join("judgeProtocol")
+            .unwrap();
+        let mut params = std::collections::HashMap::new();
+        params.insert("submissionId", id);
+        params.insert("csrf_token", csrf);
+
+        let post = self.post(u.as_str())
+            .chain_err(|| "can not build XHR request")?
+            .form(&params);
+
+        let mut resp = post.send().chain_err(|| "can not send XHR request")?;
+        resp.json().chain_err(|| "can not parse XHR response")
     }
 }
