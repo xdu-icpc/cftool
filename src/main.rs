@@ -180,8 +180,8 @@ fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
     v
 }
 
-fn get_ce_info(cf: &Codeforces, id: &str, csrf: &str) -> String {
-    cf.judgement_protocol(id, csrf).unwrap_or_else(|e| {
+fn get_ce_info(cf: &Codeforces, my: &Url, id: &str, csrf: &str) -> String {
+    cf.judgement_protocol(my, id, csrf).unwrap_or_else(|e| {
         error!("can not get compilation error info: {}", e);
         String::new()
     })
@@ -208,7 +208,7 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
                 return;
             }
 
-            let s = get_ce_info(cfg, v.get_id(), &csrf.unwrap());
+            let s = get_ce_info(cfg, url, v.get_id(), &csrf.unwrap());
             println!("{}", "===================================");
             print!("{}", s);
         }

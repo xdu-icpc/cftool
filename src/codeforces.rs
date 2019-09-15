@@ -218,10 +218,12 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn judgement_protocol(&self, id: &str, csrf: &str) -> Result<String> {
+    pub fn judgement_protocol(&self, my: &Url, id: &str, csrf: &str) -> Result<String> {
         let u = self
             .server_url
-            .join("data/")
+            .join(my.path())
+            .unwrap()
+            .join("../../data/")
             .unwrap()
             .join("judgeProtocol")
             .unwrap();
