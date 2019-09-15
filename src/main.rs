@@ -19,20 +19,24 @@ impl std::fmt::Display for CSRFError {
     }
 }
 
-fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
+fn get_csrf_token_str(txt: &str) -> Result<String, CSRFError> {
     use regex::Regex;
     let re = Regex::new(r"meta name=.X-Csrf-Token. content=.(.*)./>").unwrap();
-    let txt = resp.text()?;
-    let cap = re.captures(&txt);
+    let cap = re.captures(txt);
     let cap = match cap {
         Some(cap) => cap,
-        None => return Err(Box::new(CSRFError {})),
+        None => return Err(CSRFError {}),
     };
     let csrf = match cap.get(1) {
         Some(csrf) => csrf.as_str(),
-        None => return Err(Box::new(CSRFError {})),
+        None => return Err(CSRFError {}),
     };
     Ok(String::from(csrf))
+}
+
+fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
+    let txt = resp.text()?;
+    Ok(get_csrf_token_str(&txt)?)
 }
 
 fn http_get(url: &Url, cfg: &Codeforces) -> Response {
@@ -227,7 +231,7 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
-            let csrf = get_csrf_token(&mut resp);
+            let csrf = get_csrf_token_str(&txt);
             if let Err(e) = csrf {
                 error!("can not get csrf token, skip compile error info");
                 return;
