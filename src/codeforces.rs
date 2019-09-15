@@ -100,6 +100,11 @@ impl Codeforces {
             _ => (),
         };
 
+        match &v["contest_path"] {
+            Value::String(s) => self.set_contest_path(s)?,
+            _ => (),
+        }
+
         match &v["user_agent"] {
             Value::String(s) => self.user_agent = s.to_string(),
             _ => (),
