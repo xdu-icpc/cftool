@@ -219,7 +219,9 @@ impl Codeforces {
     }
 
     pub fn judgement_protocol(&self, id: &str, csrf: &str) -> Result<String> {
-        let u = self.server_url.join("data/")
+        let u = self
+            .server_url
+            .join("data/")
             .unwrap()
             .join("judgeProtocol")
             .unwrap();
@@ -227,7 +229,8 @@ impl Codeforces {
         params.insert("submissionId", id);
         params.insert("csrf_token", csrf);
 
-        let post = self.post(u.as_str())
+        let post = self
+            .post(u.as_str())
             .chain_err(|| "can not build XHR request")?
             .form(&params);
 

@@ -181,12 +181,10 @@ fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
 }
 
 fn get_ce_info(cf: &Codeforces, id: &str, csrf: &str) -> String {
-    cf.judgement_protocol(id, csrf).unwrap_or_else(
-        |e| {
-            error!("can not get compilation error info: {}", e);
-            String::new()
-        }
-    )
+    cf.judgement_protocol(id, csrf).unwrap_or_else(|e| {
+        error!("can not get compilation error info: {}", e);
+        String::new()
+    })
 }
 
 fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
