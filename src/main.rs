@@ -375,7 +375,7 @@ fn main() {
         action = Action::Submit(String::from(problem));
     }
 
-    let conflict_msg = "can only use one of --dry-run, --query,\
+    let conflict_msg = "can only use one of --dry-run, --query, \
                         and --problem";
     if matches.occurrences_of("dry-run") > 0 {
         if let Action::None = action {
