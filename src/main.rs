@@ -1,5 +1,4 @@
 mod codeforces;
-mod unescape;
 mod verdict;
 use codeforces::Codeforces;
 use log::{debug, error, info, warn};
@@ -182,45 +181,12 @@ fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
 }
 
 fn get_ce_info(cf: &Codeforces, id: &str, csrf: &str) -> String {
-    return cf.judgement_protocol(id, csrf).unwrap_or_else(
+    cf.judgement_protocol(id, csrf).unwrap_or_else(
         |e| {
             error!("can not get compilation error info: {}", e);
             String::new()
         }
-    );
-    let u = cf
-        .get_contest_url()
-        .unwrap()
-        .join("submission/")
-        .unwrap()
-        .join(id);
-
-    if u.is_err() {
-        error!("can not get submission URL: {}", u.unwrap_err());
-        return String::new();
-    }
-    let u = u.unwrap();
-
-    let mut resp = http_get(&u, cf);
-
-    use regex::Regex;
-    let re = Regex::new(
-        r"<div class=.name.>Checker comment</div>.[^<]*<div class=.text.><pre>(?P<msg>[^<]*)",
     )
-    .unwrap();
-
-    let txt = resp.text().unwrap_or_else(|e| {
-        error!("can not get response text: {}", e);
-        return String::new();
-    });
-
-    let caps = match re.captures(&txt) {
-        Some(c) => c,
-        None => return String::new(),
-    };
-
-    let msg = &caps["msg"];
-    String::from(msg)
 }
 
 fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
@@ -246,7 +212,7 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
 
             let s = get_ce_info(cfg, v.get_id(), &csrf.unwrap());
             println!("{}", "===================================");
-            print!("{}", unescape::Unescape(&s));
+            print!("{}", s);
         }
 
         if !wait {

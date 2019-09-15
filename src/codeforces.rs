@@ -1,7 +1,7 @@
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
-use reqwest::header::{ACCEPT, COOKIE, SET_COOKIE, USER_AGENT};
+use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
 use reqwest::{ClientBuilder, RequestBuilder, Response};
 use std::io::{BufRead, Write};
 use std::path::Path;
@@ -219,7 +219,6 @@ impl Codeforces {
     }
 
     pub fn judgement_protocol(&self, id: &str, csrf: &str) -> Result<String> {
-        println!("{} {}", id, csrf);
         let u = self.server_url.join("data/")
             .unwrap()
             .join("judgeProtocol")
