@@ -177,7 +177,7 @@ fn print_verdict(resp: &mut Response, color: bool) -> verdict::Verdict {
     v
 }
 
-fn get_ce_info(cf: &Codeforces, id: &str) -> String {
+fn get_ce_info(cf: &Codeforces, id: &str, csrf: &str) -> String {
     let u = cf
         .get_contest_url()
         .unwrap()
@@ -223,7 +223,13 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
-            let s = get_ce_info(cfg, v.get_id());
+            let csrf = get_csrf_token(&mut resp);
+            if let Err(e) = csrf {
+                error!("can not get csrf token, skip compile error info");
+                return;
+            }
+
+            let s = get_ce_info(cfg, v.get_id(), &csrf.unwrap());
             println!("{}", "===================================");
             print!("{}", unescape::Unescape(&s));
         }
