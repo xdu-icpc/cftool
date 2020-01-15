@@ -2,7 +2,7 @@ use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
 use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
-use reqwest::{ClientBuilder, RedirectPolicy, RequestBuilder, Response};
+use reqwest::{RedirectPolicy, RequestBuilder, Response};
 use std::io::{BufRead, Write};
 use std::path::Path;
 use url::Url;
@@ -90,23 +90,6 @@ impl Codeforces {
         };
 
         b
-    }
-
-    pub fn new(b: ClientBuilder) -> Result<Self> {
-        let cf = Codeforces {
-            server_url: Url::parse("https://codeforces.com").unwrap(),
-            identy: String::from(""),
-            contest_url: None,
-            user_agent: String::from(user_agent()),
-            prefer_cxx: String::from("c++17"),
-            prefer_py: String::from("py3"),
-            retry_limit: 3,
-            no_cookie: false,
-            cookie_file: None,
-            cookie_store: Default::default(),
-            client: b.build().chain_err(|| "can not build HTTP client")?,
-        };
-        Ok(cf)
     }
 
     pub fn set_contest_path<S: ToString>(&mut self, s: S) -> Result<()> {
