@@ -488,6 +488,10 @@ fn main() {
         builder = builder.identy(identy);
     }
 
+    if let Some(contest) = matches.value_of("contest") {
+        builder = builder.contest_path(contest);
+    }
+
     let mut cfg = builder.build().unwrap_or_else(|e| {
         error!("can not build Codeforces client: {}", e);
         exit(1);
