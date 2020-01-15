@@ -476,31 +476,18 @@ fn main() {
         builder = builder.cookie_file(std::path::PathBuf::from(path));
     }
 
+    if let Some(server) = matches.value_of("server") {
+        let server_url = Url::parse(server).unwrap_or_else(|e| {
+            error!("can not parse url {}: {}", server, e);
+            exit(1);
+        });
+        builder = builder.server_url(server_url);
+    }
+
     let mut cfg = builder.build().unwrap_or_else(|e| {
         error!("can not build Codeforces client: {}", e);
         exit(1);
     });
-
-    let server_override = matches.value_of("server").unwrap_or("");
-    if server_override != "" {
-        cfg.server_url = Url::parse(server_override).unwrap_or_else(|e| {
-            error!("can not parse url {}: {}", server_override, e);
-            exit(1);
-        });
-    }
-
-    match cfg.server_url.scheme() {
-        "http" | "https" => (),
-        _ => {
-            error!("scheme {} is not implemented", cfg.server_url.scheme());
-            exit(1);
-        }
-    };
-
-    if cfg.server_url.host().is_none() {
-        error!("host is empty");
-        exit(1);
-    }
 
     let identy_arg = matches.value_of("identy").unwrap_or("");
     if identy_arg != "" {

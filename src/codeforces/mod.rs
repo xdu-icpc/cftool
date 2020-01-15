@@ -101,6 +101,13 @@ impl CodeforcesBuilderResult {
             }
         };
 
+        match b.server_url.scheme() {
+            "http" | "https" => (),
+            _ => {
+                bail!("scheme {} is not implemented", b.server_url.scheme());
+            }
+        };
+
         let cf = Codeforces {
             server_url: b.server_url,
             identy: identy,
