@@ -108,7 +108,7 @@ impl CodeforcesBuilderResult {
             }
         };
 
-        let cf = Codeforces {
+        let mut cf = Codeforces {
             server_url: b.server_url,
             identy: identy,
             contest_url: b.contest_url,
@@ -127,7 +127,11 @@ impl CodeforcesBuilderResult {
                 .chain_err(|| "can not build HTTP client")?,
         };
 
-        Ok(cf)
+        if let Err(e) = cf.load_cookie_from_file() {
+            Err(e)
+        } else {
+            Ok(cf)
+        }
     }
 
     fn is_err(&self) -> bool {
@@ -331,6 +335,23 @@ impl Codeforces {
         CodeforcesBuilderResult { r: Ok(b) }
     }
 
+    fn load_cookie_from_file(&mut self) -> Result<()> {
+        if self.cookie_file == None {
+            return Ok(());
+        }
+
+        let path = self.cookie_file.as_ref().unwrap();
+        if path.exists() {
+            let f = std::fs::File::open(path)
+                .chain_err(|| format!("can not open cache file {} for reading", path.display()))?;
+            use std::io::BufReader;
+            let r = BufReader::new(f);
+            self.load_cookie(r)
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn get_contest_path(&self) -> Option<&str> {
         match &self.contest_url {
             Some(u) => Some(u.path()),
@@ -410,7 +431,7 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn load_cookie<R: BufRead>(&mut self, rd: R) -> Result<()> {
+    fn load_cookie<R: BufRead>(&mut self, rd: R) -> Result<()> {
         match CookieStore::load_json(rd) {
             Err(e) => bail!("can not load cookie: {}", e),
             Ok(c) => self.cookie_store = c,

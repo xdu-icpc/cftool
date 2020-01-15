@@ -124,34 +124,6 @@ fn maybe_save_cookie(cf: &Codeforces) {
     }
 }
 
-fn maybe_load_cookie(cf: &mut Codeforces) {
-    if cf.cookie_file == None {
-        return;
-    }
-
-    let path = cf.cookie_file.as_ref().unwrap();
-    debug!("try loading cookie from cache {}", path.display());
-
-    if path.exists() {
-        let f = std::fs::File::open(path).unwrap_or_else(|err| {
-            error!(
-                "can not open cache file {} for reading: {}",
-                path.display(),
-                err
-            );
-            exit(1);
-        });
-        use std::io::BufReader;
-        let r = BufReader::new(f);
-        cf.load_cookie(r).unwrap_or_else(|err| {
-            error!("can not read cache file: {}", err);
-            exit(1);
-        });
-    } else {
-        info!("cookie cache {} does not exist", path.display());
-    }
-}
-
 fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
     use termcolor::ColorChoice::Auto;
     use termcolor::{Buffer, BufferWriter};
@@ -513,8 +485,6 @@ fn main() {
     }
 
     let submit_url = cfg.get_contest_url().unwrap().join("submit").unwrap();
-
-    maybe_load_cookie(&mut cfg);
 
     let resp_try = http_get(&submit_url, &cfg);
 
