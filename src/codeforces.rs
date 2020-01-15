@@ -30,7 +30,6 @@ pub struct CodeforcesBuilder {
     retry_limit: i64,
     no_cookie: bool,
     cookie_file: Option<String>,
-    no_color: bool,
 }
 
 pub struct Codeforces {
@@ -45,7 +44,6 @@ pub struct Codeforces {
     pub cookie_file: Option<String>,
     cookie_store: CookieStore,
     client: reqwest::Client,
-    pub no_color: bool,
 }
 
 impl CodeforcesBuilder {
@@ -64,7 +62,6 @@ impl CodeforcesBuilder {
             retry_limit: self.retry_limit,
             no_cookie: self.no_cookie,
             cookie_file: self.cookie_file,
-            no_color: self.no_color,
             cookie_store: Default::default(),
             // We don't use redirection following feature of reqwest.
             // It will throw set-cookie in the header of redirect response.
@@ -76,10 +73,6 @@ impl CodeforcesBuilder {
         };
 
         Ok(cf)
-    }
-
-    pub fn no_color(&mut self, value: bool) {
-        self.no_color = value;
     }
 }
 
@@ -94,7 +87,6 @@ impl Codeforces {
             retry_limit: 3,
             no_cookie: false,
             cookie_file: None,
-            no_color: false,
         };
 
         b
@@ -113,7 +105,6 @@ impl Codeforces {
             cookie_file: None,
             cookie_store: Default::default(),
             client: b.build().chain_err(|| "can not build HTTP client")?,
-            no_color: false,
         };
         Ok(cf)
     }

@@ -187,7 +187,7 @@ fn get_ce_info(cf: &Codeforces, my: &Url, id: &str, csrf: &str) -> String {
     })
 }
 
-fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
+fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool, no_color: bool) {
     use std::time::{Duration, SystemTime};
     let mut wait = true;
     while wait {
@@ -197,7 +197,7 @@ fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool) {
             error!("can not parse response body into text: {}", e);
             exit(1);
         });
-        let v = print_verdict(&txt, !cfg.no_color);
+        let v = print_verdict(&txt, !no_color);
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
@@ -409,11 +409,9 @@ fn main() {
         ""
     };
 
-    let mut builder = Codeforces::builder();
+    let no_color = matches.occurrences_of("no-color") > 0;
 
-    if matches.occurrences_of("no-color") > 0 {
-        builder.no_color(true);
-    }
+    let mut builder = Codeforces::builder();
 
     let mut cfg = builder.build().unwrap_or_else(|e| {
         error!("can not build Codeforces client: {}", e);
@@ -636,7 +634,7 @@ fn main() {
         Action::Dry => exit(0),
         Action::Query => {
             let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
-            poll_or_query_verdict(&my_url, &cfg, false);
+            poll_or_query_verdict(&my_url, &cfg, false, no_color);
             exit(0);
         }
         Action::None => unreachable!(),
@@ -688,6 +686,6 @@ fn main() {
 
     if need_poll {
         let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
-        poll_or_query_verdict(&my_url, &cfg, true);
+        poll_or_query_verdict(&my_url, &cfg, true, no_color);
     }
 }
