@@ -56,15 +56,6 @@ fn http_get(url: &Url, cfg: &Codeforces) -> Response {
     resp
 }
 
-fn override_config(cfg: &mut Codeforces, p: &std::path::Path) {
-    debug!("trying to read user config file {}", p.display());
-    cfg.from_file(p).unwrap_or_else(|err| {
-        error!("can not custom config file {}: {}", p.display(), err);
-        exit(1);
-    });
-    info!("loaded custom config file {}", p.display());
-}
-
 fn get_lang_dialect(dialect: &str) -> &'static str {
     match dialect {
         "c" => "43",
@@ -87,8 +78,8 @@ fn get_lang_dialect(dialect: &str) -> &'static str {
 fn get_lang_ext(cfg: &Codeforces, ext: &str) -> &'static str {
     let dialect = match ext {
         "c" => "c",
-        "cc" | "cp" | "cxx" | "cpp" | "CPP" | "c++" | "C" => cfg.prefer_cxx.as_str(),
-        "py" => cfg.prefer_py.as_str(),
+        "cc" | "cp" | "cxx" | "cpp" | "CPP" | "c++" | "C" => cfg.cxx_dialect,
+        "py" => cfg.py_dialect,
         "rs" => "rust",
         "java" => "java",
         _ => {
@@ -413,11 +404,6 @@ fn main() {
 
     let mut builder = Codeforces::builder();
 
-    let mut cfg = builder.build().unwrap_or_else(|e| {
-        error!("can not build Codeforces client: {}", e);
-        exit(1);
-    });
-
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
 
     // Override configuration from user config file.
@@ -425,7 +411,7 @@ fn main() {
         Some(dir) => {
             let config_file = dir.config_dir().join("cftool.json");
             if config_file.exists() {
-                override_config(&mut cfg, &config_file);
+                builder = builder.set_from_file(&config_file);
             } else {
                 info!("user config file {} does not exist", config_file.display());
             }
@@ -444,7 +430,7 @@ fn main() {
     );
     let config_file = std::path::Path::new("cftool.json");
     if config_file.exists() {
-        override_config(&mut cfg, &config_file);
+        builder = builder.set_from_file(&config_file);
     } else {
         debug!("cftool.json does not exist")
     }
@@ -452,16 +438,13 @@ fn main() {
     let custom_config = matches.value_of("config").unwrap_or("");
     if custom_config != "" {
         let path = std::path::Path::new(custom_config);
-        override_config(&mut cfg, &path);
+        builder = builder.set_from_file(&path);
     }
 
-    let contest_override = matches.value_of("contest").unwrap_or("");
-    if contest_override != "" {
-        cfg.set_contest_path(contest_override).unwrap_or_else(|e| {
-            error!("can not set contest path: {}", e);
-            exit(1);
-        });
-    }
+    let mut cfg = builder.build().unwrap_or_else(|e| {
+        error!("can not build Codeforces client: {}", e);
+        exit(1);
+    });
 
     let server_override = matches.value_of("server").unwrap_or("");
     if server_override != "" {
