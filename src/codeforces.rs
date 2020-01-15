@@ -2,7 +2,7 @@ use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
 use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
-use reqwest::{ClientBuilder, RequestBuilder, Response};
+use reqwest::{ClientBuilder, RedirectPolicy, RequestBuilder, Response};
 use std::io::{BufRead, Write};
 use std::path::Path;
 use url::Url;
@@ -21,6 +21,18 @@ fn user_agent() -> &'static str {
             Safari/537.36";
 }
 
+pub struct CodeforcesBuilder {
+    server_url: Url,
+    identy: Option<String>,
+    user_agent: String,
+    cxx_dialect: String,
+    py_dialect: String,
+    retry_limit: i64,
+    no_cookie: bool,
+    cookie_file: Option<String>,
+    no_color: bool,
+}
+
 pub struct Codeforces {
     pub server_url: Url,
     pub identy: String,
@@ -36,7 +48,58 @@ pub struct Codeforces {
     pub no_color: bool,
 }
 
+impl CodeforcesBuilder {
+    pub fn build(self) -> Result<Codeforces> {
+        if self.identy.is_none() {
+            // bail!("identy is not set");
+        }
+
+        let cf = Codeforces {
+            server_url: self.server_url,
+            identy: self.identy.unwrap_or(String::from("")),
+            contest_url: None,
+            user_agent: self.user_agent,
+            prefer_cxx: self.cxx_dialect,
+            prefer_py: self.py_dialect,
+            retry_limit: self.retry_limit,
+            no_cookie: self.no_cookie,
+            cookie_file: self.cookie_file,
+            no_color: self.no_color,
+            cookie_store: Default::default(),
+            // We don't use redirection following feature of reqwest.
+            // It will throw set-cookie in the header of redirect response.
+            client: reqwest::Client::builder()
+                .gzip(true)
+                .redirect(RedirectPolicy::none())
+                .build()
+                .chain_err(|| "can not build HTTP client")?,
+        };
+
+        Ok(cf)
+    }
+
+    pub fn no_color(&mut self, value: bool) {
+        self.no_color = value;
+    }
+}
+
 impl Codeforces {
+    pub fn builder() -> CodeforcesBuilder {
+        let b = CodeforcesBuilder {
+            server_url: Url::parse("https://codeforces.com").unwrap(),
+            identy: None,
+            user_agent: String::from(user_agent()),
+            cxx_dialect: String::from("c++17"),
+            py_dialect: String::from("py3"),
+            retry_limit: 3,
+            no_cookie: false,
+            cookie_file: None,
+            no_color: false,
+        };
+
+        b
+    }
+
     pub fn new(b: ClientBuilder) -> Result<Self> {
         let cf = Codeforces {
             server_url: Url::parse("https://codeforces.com").unwrap(),

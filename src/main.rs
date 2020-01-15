@@ -409,17 +409,16 @@ fn main() {
         ""
     };
 
-    // We don't use redirection following feature of reqwest.
-    // It will throw set-cookie the header of redirect response.
-    let client_builder = reqwest::Client::builder()
-        .gzip(true)
-        .redirect(RedirectPolicy::none());
-
-    let mut cfg = Codeforces::new(client_builder).unwrap();
+    let mut builder = Codeforces::builder();
 
     if matches.occurrences_of("no-color") > 0 {
-        cfg.no_color = true;
+        builder.no_color(true);
     }
+
+    let mut cfg = builder.build().unwrap_or_else(|e| {
+        error!("can not build Codeforces client: {}", e);
+        exit(1);
+    });
 
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
 
