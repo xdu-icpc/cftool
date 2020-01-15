@@ -484,20 +484,14 @@ fn main() {
         builder = builder.server_url(server_url);
     }
 
+    if let Some(identy) = matches.value_of("identy") {
+        builder = builder.identy(identy);
+    }
+
     let mut cfg = builder.build().unwrap_or_else(|e| {
         error!("can not build Codeforces client: {}", e);
         exit(1);
     });
-
-    let identy_arg = matches.value_of("identy").unwrap_or("");
-    if identy_arg != "" {
-        cfg.identy = String::from(identy_arg);
-    }
-
-    if cfg.identy == "" {
-        error!("no identy provided");
-        exit(1);
-    }
 
     let lang = if let Action::Submit(_) = action {
         if let Some(d) = matches.value_of("dialect") {
