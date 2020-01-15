@@ -90,7 +90,12 @@ fn get_lang_ext(cfg: &Codeforces, ext: &str) -> &'static str {
     get_lang_dialect(dialect)
 }
 
-fn maybe_save_cookie(cf: &Codeforces, path: &std::path::Path) {
+fn maybe_save_cookie(cf: &Codeforces) {
+    if cf.cookie_file == None {
+        return;
+    }
+
+    let path = cf.cookie_file.as_ref().unwrap();
     debug!("try saving cookie to cache {}", path.display());
 
     let f = std::fs::OpenOptions::new()
@@ -119,7 +124,12 @@ fn maybe_save_cookie(cf: &Codeforces, path: &std::path::Path) {
     }
 }
 
-fn maybe_load_cookie(cf: &mut Codeforces, path: &std::path::Path) {
+fn maybe_load_cookie(cf: &mut Codeforces) {
+    if cf.cookie_file == None {
+        return;
+    }
+
+    let path = cf.cookie_file.as_ref().unwrap();
     debug!("try loading cookie from cache {}", path.display());
 
     if path.exists() {
@@ -403,25 +413,46 @@ fn main() {
     let no_color = matches.occurrences_of("no-color") > 0;
 
     let mut builder = Codeforces::builder();
+    let mut cookie_dir = None;
 
     let project_dirs = directories::ProjectDirs::from("cn.edu.xidian.acm", "XDU-ICPC", "cftool");
-
-    // Override configuration from user config file.
     match &project_dirs {
         Some(dir) => {
+            // Override configuration from user config file.
             let config_file = dir.config_dir().join("cftool.json");
             if config_file.exists() {
                 builder = builder.set_from_file(&config_file);
             } else {
                 info!("user config file {} does not exist", config_file.display());
             }
+            cookie_dir = Some(dir.cache_dir().join("cookie"));
             ()
         }
         None => {
-            warn!("can not get the path of user config file on the system");
+            warn!(
+                "can not get the path of user config file and cache file \
+                 on the system, cookie won't be saved unless you specify the \
+                 location"
+            );
             ()
         }
     };
+
+    let mut mkdir_fail = false;
+    if let Some(d) = &cookie_dir {
+        std::fs::create_dir_all(d).unwrap_or_else(|err| {
+            error!("can not create cache dir {}: {}", d.display(), err);
+            mkdir_fail = true;
+        });
+    }
+    if mkdir_fail {
+        cookie_dir = None;
+    }
+
+    // set up the default cache dir now so it may be overrided by config
+    if let Some(dir) = cookie_dir {
+        builder = builder.cookie_dir(dir);
+    }
 
     // Override configuration from the config file in working directory.
     debug!(
@@ -439,6 +470,10 @@ fn main() {
     if custom_config != "" {
         let path = std::path::Path::new(custom_config);
         builder = builder.set_from_file(&path);
+    }
+
+    if let Some(path) = matches.value_of("cookie") {
+        builder = builder.cookie_file(std::path::PathBuf::from(path));
     }
 
     let mut cfg = builder.build().unwrap_or_else(|e| {
@@ -477,37 +512,6 @@ fn main() {
         exit(1);
     }
 
-    if project_dirs.is_none() {
-        warn!(
-            "do not know the user cache dir on this system, \
-             cookie disabled"
-        );
-        cfg.no_cookie = true;
-    }
-
-    if let Some(path) = matches.value_of("cookie") {
-        cfg.cookie_file = Some(path.to_string());
-    }
-
-    let cookie_file = if !cfg.no_cookie {
-        if let Some(path) = &cfg.cookie_file {
-            Some(std::path::PathBuf::from(path))
-        } else {
-            let dir = project_dirs.unwrap();
-            let cookie_dir = dir.cache_dir().join("cookie");
-            std::fs::create_dir_all(&cookie_dir).unwrap_or_else(|err| {
-                error!(
-                    "can not create cache dir {}: {}",
-                    cookie_dir.to_string_lossy(),
-                    err
-                );
-            });
-            Some(cookie_dir.join(format!("{}.json", &cfg.identy)))
-        }
-    } else {
-        None
-    };
-
     let lang = if let Action::Submit(_) = action {
         if let Some(d) = matches.value_of("dialect") {
             get_lang_dialect(d)
@@ -525,10 +529,7 @@ fn main() {
 
     let submit_url = cfg.get_contest_url().unwrap().join("submit").unwrap();
 
-    match &cookie_file {
-        Some(f) => maybe_load_cookie(&mut cfg, f),
-        _ => (),
-    };
+    maybe_load_cookie(&mut cfg);
 
     let resp_try = http_get(&submit_url, &cfg);
 
@@ -607,10 +608,7 @@ fn main() {
         resp_try
     };
 
-    match &cookie_file {
-        Some(f) => maybe_save_cookie(&cfg, f),
-        _ => (),
-    };
+    maybe_save_cookie(&cfg);
 
     let problem = match action {
         Action::Submit(p) => p,

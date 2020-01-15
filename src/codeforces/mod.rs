@@ -41,13 +41,19 @@ fn py_dialect_recognize(d: &str) -> Result<&'static str> {
     })
 }
 
+enum CookieLocation {
+    None,
+    Dir(std::path::PathBuf),
+    File(std::path::PathBuf),
+}
+
 struct CodeforcesBuilder {
     server_url: Url,
     identy: Option<String>,
     user_agent: String,
     cxx_dialect: &'static str,
     py_dialect: &'static str,
-    cookie_file: Option<String>,
+    cookie_location: CookieLocation,
     retry_limit: i64,
     no_cookie: bool,
 
@@ -66,8 +72,7 @@ pub struct Codeforces {
     pub cxx_dialect: &'static str,
     pub py_dialect: &'static str,
     pub retry_limit: i64,
-    pub no_cookie: bool,
-    pub cookie_file: Option<String>,
+    pub cookie_file: Option<std::path::PathBuf>,
     cookie_store: CookieStore,
     client: reqwest::Client,
 }
@@ -81,19 +86,30 @@ impl CodeforcesBuilderResult {
         let b = self.r.unwrap();
 
         if b.identy.is_none() {
-            // bail!("identy is not set");
+            bail!("identy is not set");
         }
+
+        let identy = b.identy.unwrap();
+
+        let cookie_file = if b.no_cookie {
+            None
+        } else {
+            match b.cookie_location {
+                CookieLocation::None => None,
+                CookieLocation::File(path) => Some(path),
+                CookieLocation::Dir(dir) => Some(dir.join(format!("{}.json", identy))),
+            }
+        };
 
         let cf = Codeforces {
             server_url: b.server_url,
-            identy: b.identy.unwrap_or(String::from("")),
+            identy: identy,
             contest_url: b.contest_url,
             user_agent: b.user_agent,
             cxx_dialect: b.cxx_dialect,
             py_dialect: b.py_dialect,
             retry_limit: b.retry_limit,
-            no_cookie: b.no_cookie,
-            cookie_file: b.cookie_file,
+            cookie_file: cookie_file,
             cookie_store: Default::default(),
             // We don't use redirection following feature of reqwest.
             // It will throw set-cookie in the header of redirect response.
@@ -150,12 +166,21 @@ impl CodeforcesBuilderResult {
         Self { r: Ok(b) }
     }
 
-    pub fn cookie_file<S: ToString>(self, s: S) -> Self {
+    pub fn cookie_file(self, path: std::path::PathBuf) -> Self {
         if self.is_err() {
             return self;
         }
         let mut b = self.r.unwrap();
-        b.cookie_file = Some(s.to_string());
+        b.cookie_location = CookieLocation::File(path);
+        Self { r: Ok(b) }
+    }
+
+    pub fn cookie_dir(self, path: std::path::PathBuf) -> Self {
+        if self.is_err() {
+            return self;
+        }
+        let mut b = self.r.unwrap();
+        b.cookie_location = CookieLocation::Dir(path);
         Self { r: Ok(b) }
     }
 
@@ -292,7 +317,7 @@ impl Codeforces {
             py_dialect: "py3",
             retry_limit: 3,
             no_cookie: false,
-            cookie_file: None,
+            cookie_location: CookieLocation::None,
             contest_url: None,
         };
 
