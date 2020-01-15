@@ -1,3 +1,4 @@
+mod config;
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
@@ -120,61 +121,45 @@ impl Codeforces {
         let file = File::open(path).chain_err(|| "can not open file")?;
         let rdr = BufReader::new(file);
 
-        use serde_json::Value;
-        let v: Value = serde_json::from_reader(rdr).chain_err(|| "can not parse JSON")?;
+        let cfg: config::Config =
+            serde_json::from_reader(rdr).chain_err(|| "can not parse json")?;
 
-        // Stupid code.  Maybe need some refactoring.
-        match &v["server_url"] {
-            Value::String(s) => {
-                let u = Url::parse(s).chain_err(|| "can not parse url")?;
-                self.server_url = u;
-            }
-            _ => (),
-        };
-
-        match &v["identy"] {
-            Value::String(s) => self.identy = s.to_string(),
-            _ => (),
-        };
-
-        match &v["contest_path"] {
-            Value::String(s) => self.set_contest_path(s)?,
-            _ => (),
+        if let Some(s) = cfg.server_url {
+            let u = Url::parse(&s).chain_err(|| "can not parse url")?;
+            self.server_url = u;
         }
 
-        match &v["user_agent"] {
-            Value::String(s) => self.user_agent = s.to_string(),
-            _ => (),
-        };
-
-        match &v["prefer_cxx"] {
-            Value::String(s) => self.prefer_cxx = s.to_string(),
-            _ => (),
-        };
-
-        match &v["prefer_py"] {
-            Value::String(s) => self.prefer_py = s.to_string(),
-            _ => (),
+        if let Some(s) = cfg.identy {
+            self.identy = s;
         }
 
-        match &v["cookie_file"] {
-            Value::String(s) => self.cookie_file = Some(s.to_string()),
-            _ => (),
+        if let Some(s) = cfg.contest_path {
+            self.set_contest_path(s)?;
         }
 
-        match &v["retry_limit"] {
-            Value::Number(n) => {
-                if n.is_i64() {
-                    self.retry_limit = n.as_i64().unwrap();
-                }
-            }
-            _ => (),
+        if let Some(s) = cfg.user_agent {
+            self.user_agent = s;
         }
 
-        match &v["no_cookie"] {
-            Value::Bool(b) => self.no_cookie = *b,
-            _ => (),
-        };
+        if let Some(s) = cfg.prefer_cxx {
+            self.prefer_cxx = s;
+        }
+
+        if let Some(s) = cfg.prefer_py {
+            self.prefer_py = s;
+        }
+
+        if cfg.cookie_file.is_some() {
+            self.cookie_file = cfg.cookie_file;
+        }
+
+        if let Some(x) = cfg.retry_limit {
+            self.retry_limit = x;
+        }
+
+        if let Some(x) = cfg.no_cookie {
+            self.no_cookie = x;
+        }
 
         Ok(())
     }
