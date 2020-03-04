@@ -2,7 +2,7 @@ mod config;
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
-use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
+use reqwest::header::{COOKIE, LOCATION, SET_COOKIE, USER_AGENT};
 use reqwest::{RedirectPolicy, RequestBuilder, Response};
 use std::io::{BufRead, Write};
 use std::path::Path;
@@ -363,25 +363,62 @@ impl Codeforces {
         self.contest_url.as_ref()
     }
 
-    fn http_request_retry(&self, req: RequestBuilder) -> Result<Response> {
+    fn is_ssl_redirection(&self, resp: &Response) -> bool {
+        if !resp.status().is_redirection() {
+            return false;
+        }
+
+        let hdr_location = resp.headers().get(LOCATION);
+        if hdr_location.is_none() {
+            return false;
+        }
+
+        let s = hdr_location.unwrap().to_str();
+        if s.is_err() {
+            return false;
+        }
+
+        let url = Url::parse(s.unwrap());
+        if url.is_err() {
+            return false;
+        }
+
+        let url = url.unwrap();
+
+        url.scheme() == "https"
+            && self.server_url.scheme() != "https"
+            && self.server_url.host() == url.host()
+    }
+
+    fn ensure_ssl(&mut self) {
+        self.server_url.set_scheme("https").unwrap();
+    }
+
+    pub fn http_get<P: AsRef<str>>(&mut self, p: P) -> Result<Response> {
         let mut retry_limit = self.retry_limit;
         loop {
-            let req = req
-                .try_clone()
-                .chain_err(|| "can not clone the request for retrying")?;
-            let resp = req.send();
-            match &resp {
-                Err(e) => {
-                    if e.is_timeout() && retry_limit > 0 {
-                        retry_limit -= 1;
-                        info!("timeout, retrying");
-                        continue;
-                    } else {
-                        return resp.chain_err(|| "http request failed");
-                    }
+            let u = self
+                .server_url
+                .join(p.as_ref())
+                .chain_err(|| "can not build a URL from the path")?;
+            let resp = self.add_header(self.client.get(u.as_str())).send();
+
+            if let Err(e) = &resp {
+                if e.is_timeout() && retry_limit > 0 {
+                    retry_limit -= 1;
+                    info!("timeout, retrying");
+                    continue;
                 }
-                _ => return Ok(resp.unwrap()),
-            };
+            }
+
+            if let Ok(r) = &resp {
+                if self.is_ssl_redirection(r) {
+                    self.ensure_ssl();
+                    continue;
+                }
+            }
+
+            return resp.chain_err(|| "http request failed");
         }
     }
 
@@ -394,19 +431,6 @@ impl Codeforces {
             .join("; ");
         b.header(USER_AGENT, &self.user_agent)
             .header(COOKIE, &cookie)
-    }
-
-    fn get<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {
-        let u = self
-            .server_url
-            .join(p.as_ref())
-            .chain_err(|| "can not build a URL from the path")?;
-        Ok(self.add_header(self.client.get(u.as_str())))
-    }
-
-    pub fn http_get<P: AsRef<str>>(&self, p: P) -> Result<Response> {
-        let req = self.get(p)?;
-        self.http_request_retry(req)
     }
 
     pub fn post<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {

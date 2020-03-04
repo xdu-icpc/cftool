@@ -38,15 +38,13 @@ fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
     Ok(get_csrf_token_str(&txt)?)
 }
 
-fn http_get(url: &Url, cfg: &Codeforces) -> Response {
+fn http_get(url: &Url, cfg: &mut Codeforces) -> Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
-    let resp = cfg
-        .http_get(url.path())
-        .unwrap_or_else(|e| {
-            error!("GET {} failed: {}", url.path(), e);
-            exit(1);
-        });
+    let resp = cfg.http_get(url.path()).unwrap_or_else(|e| {
+        error!("GET {} failed: {}", url.path(), e);
+        exit(1);
+    });
 
     if !resp.status().is_success() && !resp.status().is_redirection() {
         error!("GET {} failed with status: {}", url.path(), resp.status());
@@ -160,7 +158,7 @@ fn get_ce_info(cf: &Codeforces, my: &Url, id: &str, csrf: &str) -> String {
     })
 }
 
-fn poll_or_query_verdict(url: &Url, cfg: &Codeforces, poll: bool, no_color: bool) {
+fn poll_or_query_verdict(url: &Url, cfg: &mut Codeforces, poll: bool, no_color: bool) {
     use std::time::{Duration, SystemTime};
     let mut wait = true;
     while wait {
@@ -486,7 +484,7 @@ fn main() {
 
     let submit_url = cfg.get_contest_url().unwrap().join("submit").unwrap();
 
-    let resp_try = http_get(&submit_url, &cfg);
+    let resp_try = http_get(&submit_url, &mut cfg);
 
     // The cookie contains session ID so we should save it.
     cfg.store_cookie(&resp_try).unwrap_or_else(|e| {
@@ -503,7 +501,7 @@ fn main() {
             exit(1);
         });
 
-        let mut resp = http_get(&login_url, &cfg);
+        let mut resp = http_get(&login_url, &mut cfg);
         let csrf = get_csrf_token(&mut resp).unwrap_or_else(|err| {
             error!("failed to get CSRF token: {}", err);
             exit(1);
@@ -550,7 +548,7 @@ fn main() {
         });
 
         // Retry to GET the submit page.
-        let resp = http_get(&submit_url, &cfg);
+        let resp = http_get(&submit_url, &mut cfg);
         if resp.status().is_redirection() {
             error!(
                 "authentication failed, maybe identy or password is\
@@ -570,7 +568,7 @@ fn main() {
         Action::Dry => exit(0),
         Action::Query => {
             let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
-            poll_or_query_verdict(&my_url, &cfg, false, no_color);
+            poll_or_query_verdict(&my_url, &mut cfg, false, no_color);
             exit(0);
         }
         Action::None => unreachable!(),
@@ -622,6 +620,6 @@ fn main() {
 
     if need_poll {
         let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
-        poll_or_query_verdict(&my_url, &cfg, true, no_color);
+        poll_or_query_verdict(&my_url, &mut cfg, true, no_color);
     }
 }
