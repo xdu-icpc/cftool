@@ -42,7 +42,7 @@ fn http_get(url: &Url, cfg: &Codeforces) -> Response {
     info!("GET {} from {}", url.path(), url.host().unwrap());
 
     let resp = cfg
-        .http_request_retry(|| cfg.get(url.path()).unwrap())
+        .http_get(url.path())
         .unwrap_or_else(|e| {
             error!("GET {} failed: {}", url.path(), e);
             exit(1);

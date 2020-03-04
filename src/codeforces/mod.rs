@@ -363,10 +363,13 @@ impl Codeforces {
         self.contest_url.as_ref()
     }
 
-    pub fn http_request_retry<F: Fn() -> RequestBuilder>(&self, req: F) -> Result<Response> {
+    fn http_request_retry(&self, req: RequestBuilder) -> Result<Response> {
         let mut retry_limit = self.retry_limit;
         loop {
-            let resp = req().send();
+            let req = req
+                .try_clone()
+                .chain_err(|| "can not clone the request for retrying")?;
+            let resp = req.send();
             match &resp {
                 Err(e) => {
                     if e.is_timeout() && retry_limit > 0 {
@@ -393,12 +396,17 @@ impl Codeforces {
             .header(COOKIE, &cookie)
     }
 
-    pub fn get<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {
+    fn get<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {
         let u = self
             .server_url
             .join(p.as_ref())
             .chain_err(|| "can not build a URL from the path")?;
         Ok(self.add_header(self.client.get(u.as_str())))
+    }
+
+    pub fn http_get<P: AsRef<str>>(&self, p: P) -> Result<Response> {
+        let req = self.get(p)?;
+        self.http_request_retry(req)
     }
 
     pub fn post<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {
