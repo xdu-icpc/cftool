@@ -3,7 +3,7 @@ use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
 use reqwest::header::{COOKIE, LOCATION, SET_COOKIE, USER_AGENT};
-use reqwest::{RedirectPolicy, RequestBuilder, Response};
+use reqwest::{Method, RedirectPolicy, RequestBuilder, Response};
 use std::io::{BufRead, Write};
 use std::path::Path;
 use url::Url;
@@ -394,14 +394,31 @@ impl Codeforces {
         self.server_url.set_scheme("https").unwrap();
     }
 
-    pub fn http_get<P: AsRef<str>>(&mut self, p: P) -> Result<Response> {
-        let mut retry_limit = self.retry_limit;
+    pub fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
+        self.http_request(Method::GET, path, None, true)
+    }
+
+    fn http_request<P>(
+        &mut self,
+        method: Method,
+        path: P,
+        decorator: Option<fn(RequestBuilder) -> RequestBuilder>,
+        retry: bool,
+    ) -> Result<Response>
+    where
+        P: AsRef<str>,
+    {
+        let mut retry_limit = if retry { self.retry_limit } else { 1 };
         loop {
+            let method = method.clone();
             let u = self
                 .server_url
-                .join(p.as_ref())
+                .join(path.as_ref())
                 .chain_err(|| "can not build a URL from the path")?;
-            let resp = self.add_header(self.client.get(u.as_str())).send();
+            let resp = decorator.unwrap_or(|x| x)(
+                self.add_header(self.client.request(method, u.as_str())),
+            )
+            .send();
 
             if let Err(e) = &resp {
                 if e.is_timeout() && retry_limit > 0 {
