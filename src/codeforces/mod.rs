@@ -395,18 +395,19 @@ impl Codeforces {
     }
 
     pub fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
-        self.http_request(Method::GET, path, None, true)
+        self.http_request(Method::GET, path, |x| x, true)
     }
 
-    fn http_request<P>(
+    fn http_request<P, F>(
         &mut self,
         method: Method,
         path: P,
-        decorator: Option<fn(RequestBuilder) -> RequestBuilder>,
+        decorator: F,
         retry: bool,
     ) -> Result<Response>
     where
         P: AsRef<str>,
+        F: Fn(RequestBuilder) -> RequestBuilder,
     {
         let mut retry_limit = if retry { self.retry_limit } else { 1 };
         loop {
@@ -415,10 +416,7 @@ impl Codeforces {
                 .server_url
                 .join(path.as_ref())
                 .chain_err(|| "can not build a URL from the path")?;
-            let resp = decorator.unwrap_or(|x| x)(
-                self.add_header(self.client.request(method, u.as_str())),
-            )
-            .send();
+            let resp = decorator(self.add_header(self.client.request(method, u.as_str()))).send();
 
             if let Err(e) = &resp {
                 if e.is_timeout() && retry_limit > 0 {
@@ -488,7 +486,7 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn judgement_protocol(&self, my: &Url, id: &str, csrf: &str) -> Result<String> {
+    pub fn judgement_protocol(&mut self, my: &Url, id: &str, csrf: &str) -> Result<String> {
         let u = self
             .server_url
             .join(my.path())
@@ -501,12 +499,7 @@ impl Codeforces {
         params.insert("submissionId", id);
         params.insert("csrf_token", csrf);
 
-        let post = self
-            .post(u.as_str())
-            .chain_err(|| "can not build XHR request")?
-            .form(&params);
-
-        let mut resp = post.send().chain_err(|| "can not send XHR request")?;
+        let mut resp = self.http_request(Method::POST, u.as_str(), |x| x.form(&params), true)?;
         resp.json().chain_err(|| "can not parse XHR response")
     }
 }

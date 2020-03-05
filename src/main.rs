@@ -151,7 +151,7 @@ fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
     v
 }
 
-fn get_ce_info(cf: &Codeforces, my: &Url, id: &str, csrf: &str) -> String {
+fn get_ce_info(cf: &mut Codeforces, my: &Url, id: &str, csrf: &str) -> String {
     cf.judgement_protocol(my, id, csrf).unwrap_or_else(|e| {
         error!("can not get compilation error info: {}", e);
         String::new()
