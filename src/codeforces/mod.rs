@@ -225,7 +225,7 @@ pub struct Codeforces {
     pub user_agent: String,
     pub dialect: language::DialectParser,
     pub retry_limit: i64,
-    pub cookie_file: Option<PathBuf>,
+    cookie_file: Option<PathBuf>,
     cookie_store: CookieStore,
     client: reqwest::Client,
 }
@@ -260,6 +260,24 @@ impl Codeforces {
         } else {
             Ok(())
         }
+    }
+
+    pub fn maybe_save_cookie(&self) -> Result<Option<&PathBuf>> {
+        if self.cookie_file == None {
+            return Ok(None);
+        }
+
+        let path = self.cookie_file.as_ref().unwrap();
+
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .chain_err(|| "can not open cache file for writing")?;
+
+        self.save_cookie(&mut f)?;
+        Ok(self.cookie_file.as_ref())
     }
 
     pub fn get_contest_url(&self) -> &Url {
@@ -375,7 +393,7 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn save_cookie<W: Write>(&self, w: &mut W) -> Result<()> {
+    fn save_cookie<W: Write>(&self, w: &mut W) -> Result<()> {
         if let Err(e) = self.cookie_store.save_json(w) {
             bail!("can not save cookie: {}", e);
         }

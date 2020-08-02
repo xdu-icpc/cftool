@@ -67,40 +67,6 @@ fn set_from_file(
     }
 }
 
-fn maybe_save_cookie(cf: &Codeforces) {
-    if cf.cookie_file == None {
-        return;
-    }
-
-    let path = cf.cookie_file.as_ref().unwrap();
-    debug!("try saving cookie to cache {}", path.display());
-
-    let f = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path);
-
-    match f {
-        Err(e) => {
-            error!(
-                "can not open cache file {} for writing: {}",
-                path.display(),
-                e
-            );
-            error!("cookie not saved");
-            return;
-        }
-        Ok(mut f) => {
-            if let Err(e) = cf.save_cookie(&mut f) {
-                error!("can not write into cache file {}: {}", path.display(), e);
-            } else {
-                info!("cookie saved to cache {}", path.display());
-            }
-        }
-    }
-}
-
 fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
     use termcolor::ColorChoice::Auto;
     use termcolor::{Buffer, BufferWriter};
@@ -535,7 +501,16 @@ fn main() {
         resp_try
     };
 
-    maybe_save_cookie(&cfg);
+    match cfg.maybe_save_cookie() {
+        Err(e) => error!("cannot save cookie: {}", e),
+        Ok(saved) => {
+            if let Some(p) = saved {
+                info!("cookie saved to {}", p.display());
+            } else {
+                info!("cookie not saved");
+            }
+        }
+    }
 
     let problem = match action {
         Action::Submit(p) => p,
