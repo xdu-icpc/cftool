@@ -1,4 +1,5 @@
 mod config;
+pub mod language;
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
@@ -20,25 +21,6 @@ fn user_agent() -> &'static str {
             AppleWebkit/537.36 (KHTML, like Gecko) \
             Chrome/74.0.3729.169 \
             Safari/537.36";
-}
-
-fn cxx_dialect_recognize(d: &str) -> Result<&'static str> {
-    Ok(match d {
-        "c++11" | "cxx11" | "cpp11" | "c++0x" | "cxx0x" | "cpp0x" => "c++11",
-        "c++14" | "cxx14" | "cpp14" | "c++1y" | "cxx1y" | "cpp1y" => "c++14",
-        "c++17" | "cxx17" | "cpp17" | "c++1z" | "cxx1z" | "cpp1z" => "c++17",
-        _ => bail!("unknown or unsupported C++ dialect: {}", d),
-    })
-}
-
-fn py_dialect_recognize(d: &str) -> Result<&'static str> {
-    Ok(match d {
-        "py2" | "python2" | "cpython2" => "py2",
-        "py3" | "python3" | "cpython3" => "py3",
-        "pypy2" => "pypy2",
-        "pypy3" => "pypy3",
-        _ => bail!("unknown or unsupported Python dialect: {}", d),
-    })
 }
 
 enum CookieLocation {
@@ -65,8 +47,7 @@ pub struct Codeforces {
     pub identy: String,
     contest_url: Url,
     pub user_agent: String,
-    pub cxx_dialect: &'static str,
-    pub py_dialect: &'static str,
+    pub dialect: language::DialectParser,
     pub retry_limit: i64,
     pub cookie_file: Option<PathBuf>,
     cookie_store: CookieStore,
@@ -117,21 +98,18 @@ impl CodeforcesBuilder {
             .join(&contest_path)
             .chain_err(|| "can not parse contest path into URL")?;
 
-        let cxx_dialect = b
-            .cxx_dialect
-            .map_or(Ok("c++17"), |x| cxx_dialect_recognize(&x))?;
+        let cxx = b.cxx_dialect.as_ref().map_or("c++17", |x| x.as_ref());
+        let py = b.py_dialect.as_ref().map_or("py3", |x| x.as_ref());
 
-        let py_dialect = b
-            .py_dialect
-            .map_or(Ok("py3"), |x| py_dialect_recognize(&x))?;
+        let dialect =
+            language::DialectParser::new(cxx, py).chain_err(|| "can not parse dialect setting")?;
 
         let mut cf = Codeforces {
             server_url: server_url,
             identy: identy,
             contest_url: contest_url,
             user_agent: b.user_agent,
-            cxx_dialect: cxx_dialect,
-            py_dialect: py_dialect,
+            dialect: dialect,
             retry_limit: b.retry_limit,
             cookie_file: cookie_file,
             cookie_store: Default::default(),

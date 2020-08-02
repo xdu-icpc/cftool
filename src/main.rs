@@ -54,40 +54,6 @@ fn http_get(url: &Url, cfg: &mut Codeforces) -> Response {
     resp
 }
 
-fn get_lang_dialect(dialect: &str) -> &'static str {
-    match dialect {
-        "c" => "43",
-        "c++17" => "54",
-        "c++14" => "50",
-        "c++11" => "42",
-        "py3" => "31",
-        "py2" => "7",
-        "pypy3" => "41",
-        "pypy2" => "40",
-        "rust" => "49",
-        "java" => "36",
-        _ => {
-            error!("don't know dialect {}", dialect);
-            exit(1);
-        }
-    }
-}
-
-fn get_lang_ext(cfg: &Codeforces, ext: &str) -> &'static str {
-    let dialect = match ext {
-        "c" => "c",
-        "cc" | "cp" | "cxx" | "cpp" | "CPP" | "c++" | "C" => cfg.cxx_dialect,
-        "py" => cfg.py_dialect,
-        "rs" => "rust",
-        "java" => "java",
-        _ => {
-            error!("don't know extension {}", ext);
-            exit(1);
-        }
-    };
-    get_lang_dialect(dialect)
-}
-
 fn set_from_file(
     b: codeforces::CodeforcesBuilder,
     p: &std::path::Path,
@@ -478,13 +444,17 @@ fn main() {
 
     let lang = if let Action::Submit(_) = action {
         if let Some(d) = matches.value_of("dialect") {
-            get_lang_dialect(d)
+            codeforces::language::get_lang_dialect(d)
         } else {
-            get_lang_ext(&cfg, ext)
+            cfg.dialect.get_lang_ext(ext)
         }
     } else {
-        ""
-    };
+        Ok("")
+    }
+    .unwrap_or_else(|e| {
+        error!("can not parse language dialect: {}", e);
+        exit(1);
+    });
 
     let submit_url = cfg.get_contest_url().join("submit").unwrap();
 
