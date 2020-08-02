@@ -5,7 +5,7 @@ use log::info;
 use reqwest::header::{COOKIE, LOCATION, SET_COOKIE, USER_AGENT};
 use reqwest::{Method, RedirectPolicy, RequestBuilder, Response};
 use std::io::{BufRead, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use url::Url;
 
 mod error {
@@ -43,8 +43,8 @@ fn py_dialect_recognize(d: &str) -> Result<&'static str> {
 
 enum CookieLocation {
     None,
-    Dir(std::path::PathBuf),
-    File(std::path::PathBuf),
+    Dir(PathBuf),
+    File(PathBuf),
 }
 
 struct CodeforcesBuilder {
@@ -57,7 +57,7 @@ struct CodeforcesBuilder {
     retry_limit: i64,
     no_cookie: bool,
 
-    contest_url: Option<Url>,
+    contest_path: Option<PathBuf>,
 }
 
 pub struct CodeforcesBuilderResult {
@@ -67,12 +67,12 @@ pub struct CodeforcesBuilderResult {
 pub struct Codeforces {
     pub server_url: Url,
     pub identy: String,
-    contest_url: Option<Url>,
+    contest_url: Url,
     pub user_agent: String,
     pub cxx_dialect: &'static str,
     pub py_dialect: &'static str,
     pub retry_limit: i64,
-    pub cookie_file: Option<std::path::PathBuf>,
+    pub cookie_file: Option<PathBuf>,
     cookie_store: CookieStore,
     client: reqwest::Client,
 }
@@ -108,10 +108,24 @@ impl CodeforcesBuilderResult {
             }
         };
 
+        if b.contest_path.is_none() {
+            bail!("contest path is not set");
+        }
+
+        let contest_path = b.contest_path
+            .unwrap()
+            .to_str()
+            .map(|x| x.to_owned())
+            .chain_err(|| "contest path is not valid UTF-8")?;
+
+        let contest_url = b.server_url
+            .join(&contest_path)
+            .chain_err(|| "can not parse contest path into URL")?;
+
         let mut cf = Codeforces {
             server_url: b.server_url,
             identy: identy,
-            contest_url: b.contest_url,
+            contest_url: contest_url,
             user_agent: b.user_agent,
             cxx_dialect: b.cxx_dialect,
             py_dialect: b.py_dialect,
@@ -177,7 +191,7 @@ impl CodeforcesBuilderResult {
         Self { r: Ok(b) }
     }
 
-    pub fn cookie_file(self, path: std::path::PathBuf) -> Self {
+    pub fn cookie_file(self, path: PathBuf) -> Self {
         if self.is_err() {
             return self;
         }
@@ -186,7 +200,7 @@ impl CodeforcesBuilderResult {
         Self { r: Ok(b) }
     }
 
-    pub fn cookie_dir(self, path: std::path::PathBuf) -> Self {
+    pub fn cookie_dir(self, path: PathBuf) -> Self {
         if self.is_err() {
             return self;
         }
@@ -247,17 +261,8 @@ impl CodeforcesBuilderResult {
         }
 
         let mut b = self.r.unwrap();
-        let p = s.to_string() + "/";
-        let u = b
-            .server_url
-            .join(&p)
-            .chain_err(|| "can not build a legal URL from the contest path");
-
-        if let Err(e) = u {
-            return Self::from_err(e);
-        }
-
-        b.contest_url = Some(u.unwrap());
+        /* '/' for url::Url::join interface. */
+        b.contest_path = Some(PathBuf::from(s.to_string() + "/"));
         Self { r: Ok(b) }
     }
 
@@ -329,7 +334,7 @@ impl Codeforces {
             retry_limit: 3,
             no_cookie: false,
             cookie_location: CookieLocation::None,
-            contest_url: None,
+            contest_path: None,
         };
 
         CodeforcesBuilderResult { r: Ok(b) }
@@ -352,15 +357,8 @@ impl Codeforces {
         }
     }
 
-    pub fn get_contest_path(&self) -> Option<&str> {
-        match &self.contest_url {
-            Some(u) => Some(u.path()),
-            None => None,
-        }
-    }
-
-    pub fn get_contest_url(&self) -> Option<&Url> {
-        self.contest_url.as_ref()
+    pub fn get_contest_url(&self) -> &Url {
+        &self.contest_url
     }
 
     fn is_ssl_redirection(&self, resp: &Response) -> bool {
@@ -392,6 +390,7 @@ impl Codeforces {
 
     fn ensure_ssl(&mut self) {
         self.server_url.set_scheme("https").unwrap();
+        self.contest_url.set_scheme("https").unwrap();
     }
 
     pub fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
@@ -486,11 +485,9 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn judgement_protocol(&mut self, my: &Url, id: &str, csrf: &str) -> Result<String> {
+    pub fn judgement_protocol(&mut self, id: &str, csrf: &str) -> Result<String> {
         let u = self
-            .server_url
-            .join(my.path())
-            .unwrap()
+            .contest_url
             .join("../../data/")
             .unwrap()
             .join("judgeProtocol")

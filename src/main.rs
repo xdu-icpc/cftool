@@ -151,8 +151,8 @@ fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
     v
 }
 
-fn get_ce_info(cf: &mut Codeforces, my: &Url, id: &str, csrf: &str) -> String {
-    cf.judgement_protocol(my, id, csrf).unwrap_or_else(|e| {
+fn get_ce_info(cf: &mut Codeforces, id: &str, csrf: &str) -> String {
+    cf.judgement_protocol(id, csrf).unwrap_or_else(|e| {
         error!("can not get compilation error info: {}", e);
         String::new()
     })
@@ -179,7 +179,7 @@ fn poll_or_query_verdict(url: &Url, cfg: &mut Codeforces, poll: bool, no_color: 
                 return;
             }
 
-            let s = get_ce_info(cfg, url, v.get_id(), &csrf.unwrap());
+            let s = get_ce_info(cfg, v.get_id(), &csrf.unwrap());
             println!("{}", "===================================");
             print!("{}", s);
         }
@@ -477,12 +477,7 @@ fn main() {
         ""
     };
 
-    if cfg.get_contest_path().is_none() {
-        error!("no contest URL provided");
-        exit(1);
-    }
-
-    let submit_url = cfg.get_contest_url().unwrap().join("submit").unwrap();
+    let submit_url = cfg.get_contest_url().join("submit").unwrap();
 
     let resp_try = http_get(&submit_url, &mut cfg);
 
@@ -567,7 +562,7 @@ fn main() {
         Action::Submit(p) => p,
         Action::Dry => exit(0),
         Action::Query => {
-            let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
+            let my_url = cfg.get_contest_url().join("my").unwrap();
             poll_or_query_verdict(&my_url, &mut cfg, false, no_color);
             exit(0);
         }
@@ -619,7 +614,7 @@ fn main() {
     }
 
     if need_poll {
-        let my_url = cfg.get_contest_url().unwrap().join("my").unwrap();
+        let my_url = cfg.get_contest_url().join("my").unwrap();
         poll_or_query_verdict(&my_url, &mut cfg, true, no_color);
     }
 }
