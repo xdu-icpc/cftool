@@ -88,6 +88,19 @@ fn get_lang_ext(cfg: &Codeforces, ext: &str) -> &'static str {
     get_lang_dialect(dialect)
 }
 
+fn set_from_file(
+    b: codeforces::CodeforcesBuilder,
+    p: &std::path::Path,
+) -> codeforces::CodeforcesBuilder {
+    match b.set_from_file(p) {
+        Ok(b) => b,
+        Err(e) => {
+            error!("can not parse {}: {}", p.display(), e);
+            exit(1);
+        }
+    }
+}
+
 fn maybe_save_cookie(cf: &Codeforces) {
     if cf.cookie_file == None {
         return;
@@ -391,7 +404,7 @@ fn main() {
             // Override configuration from user config file.
             let config_file = dir.config_dir().join("cftool.json");
             if config_file.exists() {
-                builder = builder.set_from_file(&config_file);
+                builder = set_from_file(builder, &config_file);
             } else {
                 info!("user config file {} does not exist", config_file.display());
             }
@@ -431,7 +444,7 @@ fn main() {
     );
     let config_file = std::path::Path::new("cftool.json");
     if config_file.exists() {
-        builder = builder.set_from_file(&config_file);
+        builder = set_from_file(builder, &config_file);
     } else {
         debug!("cftool.json does not exist")
     }
@@ -439,7 +452,7 @@ fn main() {
     let custom_config = matches.value_of("config").unwrap_or("");
     if custom_config != "" {
         let path = std::path::Path::new(custom_config);
-        builder = builder.set_from_file(&path);
+        builder = set_from_file(builder, &path);
     }
 
     if let Some(path) = matches.value_of("cookie") {
@@ -447,11 +460,7 @@ fn main() {
     }
 
     if let Some(server) = matches.value_of("server") {
-        let server_url = Url::parse(server).unwrap_or_else(|e| {
-            error!("can not parse url {}: {}", server, e);
-            exit(1);
-        });
-        builder = builder.server_url(server_url);
+        builder = builder.server_url(server);
     }
 
     if let Some(identy) = matches.value_of("identy") {

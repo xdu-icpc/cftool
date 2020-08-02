@@ -47,21 +47,17 @@ enum CookieLocation {
     File(PathBuf),
 }
 
-struct CodeforcesBuilder {
-    server_url: Url,
+pub struct CodeforcesBuilder {
+    server_url: String,
     identy: Option<String>,
     user_agent: String,
-    cxx_dialect: &'static str,
-    py_dialect: &'static str,
+    cxx_dialect: Option<String>,
+    py_dialect: Option<String>,
     cookie_location: CookieLocation,
     retry_limit: i64,
     no_cookie: bool,
 
     contest_path: Option<PathBuf>,
-}
-
-pub struct CodeforcesBuilderResult {
-    r: Result<CodeforcesBuilder>,
 }
 
 pub struct Codeforces {
@@ -77,13 +73,9 @@ pub struct Codeforces {
     client: reqwest::Client,
 }
 
-impl CodeforcesBuilderResult {
+impl CodeforcesBuilder {
     pub fn build(self) -> Result<Codeforces> {
-        if let Err(e) = self.r {
-            return Err(e);
-        }
-
-        let b = self.r.unwrap();
+        let b = self;
 
         if b.identy.is_none() {
             bail!("identy is not set");
@@ -101,10 +93,12 @@ impl CodeforcesBuilderResult {
             }
         };
 
-        match b.server_url.scheme() {
+        let server_url = Url::parse(&b.server_url).chain_err(|| "can not parse server URL")?;
+
+        match server_url.scheme() {
             "http" | "https" => (),
             _ => {
-                bail!("scheme {} is not implemented", b.server_url.scheme());
+                bail!("scheme {} is not implemented", server_url.scheme());
             }
         };
 
@@ -112,23 +106,32 @@ impl CodeforcesBuilderResult {
             bail!("contest path is not set");
         }
 
-        let contest_path = b.contest_path
+        let contest_path = b
+            .contest_path
             .unwrap()
             .to_str()
             .map(|x| x.to_owned())
             .chain_err(|| "contest path is not valid UTF-8")?;
 
-        let contest_url = b.server_url
+        let contest_url = server_url
             .join(&contest_path)
             .chain_err(|| "can not parse contest path into URL")?;
 
+        let cxx_dialect = b
+            .cxx_dialect
+            .map_or(Ok("c++17"), |x| cxx_dialect_recognize(&x))?;
+
+        let py_dialect = b
+            .py_dialect
+            .map_or(Ok("py3"), |x| py_dialect_recognize(&x))?;
+
         let mut cf = Codeforces {
-            server_url: b.server_url,
+            server_url: server_url,
             identy: identy,
             contest_url: contest_url,
             user_agent: b.user_agent,
-            cxx_dialect: b.cxx_dialect,
-            py_dialect: b.py_dialect,
+            cxx_dialect: cxx_dialect,
+            py_dialect: py_dialect,
             retry_limit: b.retry_limit,
             cookie_file: cookie_file,
             cookie_store: Default::default(),
@@ -148,147 +151,73 @@ impl CodeforcesBuilderResult {
         }
     }
 
-    fn is_err(&self) -> bool {
-        return self.r.is_err();
+    pub fn server_url(mut self, u: &str) -> Self {
+        self.server_url = u.to_owned();
+        self
     }
 
-    fn from_err(e: Error) -> Self {
-        Self { r: Err(e) }
+    pub fn identy<S: ToString>(mut self, s: S) -> Self {
+        self.identy = Some(s.to_string());
+        self
     }
 
-    pub fn server_url(self, u: Url) -> Self {
-        if self.is_err() {
-            return self;
-        }
-
-        let mut b = self.r.unwrap();
-        b.server_url = u;
-        Self { r: Ok(b) }
+    pub fn user_agent<S: ToString>(mut self, s: S) -> Self {
+        self.user_agent = s.to_string();
+        self
     }
 
-    pub fn server_url_str(self, s: &str) -> Self {
-        match Url::parse(s).chain_err(|| "can not parse url") {
-            Err(e) => Self::from_err(e),
-            Ok(u) => self.server_url(u),
-        }
+    pub fn cookie_file(mut self, path: PathBuf) -> Self {
+        self.cookie_location = CookieLocation::File(path);
+        self
     }
 
-    pub fn identy<S: ToString>(self, s: S) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let mut b = self.r.unwrap();
-        b.identy = Some(s.to_string());
-        Self { r: Ok(b) }
+    pub fn cookie_dir(mut self, path: PathBuf) -> Self {
+        self.cookie_location = CookieLocation::Dir(path);
+        self
     }
 
-    pub fn user_agent<S: ToString>(self, s: S) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let mut b = self.r.unwrap();
-        b.user_agent = s.to_string();
-        Self { r: Ok(b) }
+    pub fn no_cookie(mut self, value: bool) -> Self {
+        self.no_cookie = value;
+        self
     }
 
-    pub fn cookie_file(self, path: PathBuf) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let mut b = self.r.unwrap();
-        b.cookie_location = CookieLocation::File(path);
-        Self { r: Ok(b) }
+    pub fn retry_limit(mut self, value: i64) -> Self {
+        self.retry_limit = value;
+        self
     }
 
-    pub fn cookie_dir(self, path: PathBuf) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let mut b = self.r.unwrap();
-        b.cookie_location = CookieLocation::Dir(path);
-        Self { r: Ok(b) }
+    pub fn cxx_dialect<S: ToString>(mut self, s: S) -> Self {
+        self.cxx_dialect = Some(s.to_string());
+        self
     }
 
-    pub fn no_cookie(self, value: bool) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let mut b = self.r.unwrap();
-        b.no_cookie = value;
-        Self { r: Ok(b) }
+    pub fn py_dialect<S: ToString>(mut self, s: S) -> Self {
+        self.py_dialect = Some(s.to_string());
+        self
     }
 
-    pub fn retry_limit(self, value: i64) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let mut b = self.r.unwrap();
-        b.retry_limit = value;
-        Self { r: Ok(b) }
-    }
-
-    pub fn cxx_dialect<S: ToString>(self, s: S) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let s = s.to_string();
-        let dialect = cxx_dialect_recognize(&s);
-        if let Err(e) = dialect {
-            return Self::from_err(e);
-        }
-        let mut b = self.r.unwrap();
-        b.cxx_dialect = dialect.unwrap();
-        Self { r: Ok(b) }
-    }
-
-    pub fn py_dialect<S: ToString>(self, s: S) -> Self {
-        if self.is_err() {
-            return self;
-        }
-        let s = s.to_string();
-        let dialect = py_dialect_recognize(&s);
-        if let Err(e) = dialect {
-            return Self::from_err(e);
-        }
-        let mut b = self.r.unwrap();
-        b.py_dialect = dialect.unwrap();
-        Self { r: Ok(b) }
-    }
-
-    pub fn contest_path<S: ToString>(self, s: S) -> Self {
-        if let Err(e) = self.r {
-            return Self::from_err(e);
-        }
-
-        let mut b = self.r.unwrap();
+    pub fn contest_path<S: ToString>(mut self, s: S) -> Self {
         /* '/' for url::Url::join interface. */
-        b.contest_path = Some(PathBuf::from(s.to_string() + "/"));
-        Self { r: Ok(b) }
+        self.contest_path = Some(PathBuf::from(s.to_string() + "/"));
+        self
     }
 
     // Override some config options from JSON config file.
-    pub fn set_from_file<P: AsRef<Path>>(mut self, path: P) -> Self {
+    pub fn set_from_file<P: AsRef<Path>>(mut self, path: P) -> Result<Self> {
         use std::fs::File;
         use std::io::BufReader;
-        let file = File::open(path).chain_err(|| "can not open file");
-        if let Err(e) = file {
-            return Self::from_err(e);
-        }
-        let rdr = BufReader::new(file.unwrap());
+        let file = File::open(path).chain_err(|| "can not open file")?;
+        let rdr = BufReader::new(file);
 
-        let cfg: Result<config::Config> =
-            serde_json::from_reader(rdr).chain_err(|| "can not parse json");
-        if let Err(e) = cfg {
-            return Self::from_err(e);
-        }
-        let cfg = cfg.unwrap();
+        let cfg: config::Config =
+            serde_json::from_reader(rdr).chain_err(|| "can not parse json")?;
 
         if let Some(s) = cfg.contest_path {
             self = self.contest_path(s);
         }
 
         if let Some(s) = cfg.server_url {
-            self = self.server_url_str(&s);
+            self = self.server_url(&s);
         }
 
         if let Some(s) = cfg.identy {
@@ -319,25 +248,23 @@ impl CodeforcesBuilderResult {
             self = self.no_cookie(b);
         }
 
-        self
+        Ok(self)
     }
 }
 
 impl Codeforces {
-    pub fn builder() -> CodeforcesBuilderResult {
-        let b = CodeforcesBuilder {
-            server_url: Url::parse("https://codeforces.com").unwrap(),
+    pub fn builder() -> CodeforcesBuilder {
+        CodeforcesBuilder {
+            server_url: "https://codeforces.com".to_owned(),
             identy: None,
             user_agent: String::from(user_agent()),
-            cxx_dialect: "c++17",
-            py_dialect: "py3",
+            cxx_dialect: None,
+            py_dialect: None,
             retry_limit: 3,
             no_cookie: false,
             cookie_location: CookieLocation::None,
             contest_path: None,
-        };
-
-        CodeforcesBuilderResult { r: Ok(b) }
+        }
     }
 
     fn load_cookie_from_file(&mut self) -> Result<()> {
