@@ -15,14 +15,6 @@ mod error {
 
 use error::*;
 
-// Copied from GNOME Epiphany-3.32.4.
-fn user_agent() -> &'static str {
-    return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
-            AppleWebkit/537.36 (KHTML, like Gecko) \
-            Chrome/74.0.3729.169 \
-            Safari/537.36";
-}
-
 enum CookieLocation {
     None,
     Dir(PathBuf),
@@ -32,7 +24,7 @@ enum CookieLocation {
 pub struct CodeforcesBuilder {
     server_url: Option<String>,
     identy: Option<String>,
-    user_agent: String,
+    user_agent: Option<String>,
     cxx_dialect: Option<String>,
     py_dialect: Option<String>,
     cookie_location: CookieLocation,
@@ -97,11 +89,14 @@ impl CodeforcesBuilder {
         let dialect =
             language::DialectParser::new(cxx, py).chain_err(|| "can not parse dialect setting")?;
 
+        let user_agent = b.user_agent
+            .unwrap_or("cftool/0.4.1 (cftool)".to_owned());
+
         let mut cf = Codeforces {
             server_url: server_url,
             identy: identy,
             contest_url: contest_url,
-            user_agent: b.user_agent,
+            user_agent: user_agent,
             dialect: dialect,
             retry_limit: b.retry_limit,
             cookie_file: cookie_file,
@@ -133,7 +128,7 @@ impl CodeforcesBuilder {
     }
 
     pub fn user_agent<S: ToString>(mut self, s: S) -> Self {
-        self.user_agent = s.to_string();
+        self.user_agent = Some(s.to_string());
         self
     }
 
@@ -240,7 +235,7 @@ impl Codeforces {
         CodeforcesBuilder {
             server_url: None,
             identy: None,
-            user_agent: String::from(user_agent()),
+            user_agent: None,
             cxx_dialect: None,
             py_dialect: None,
             retry_limit: 3,
