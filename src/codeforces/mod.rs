@@ -42,18 +42,6 @@ pub struct CodeforcesBuilder {
     contest_path: Option<PathBuf>,
 }
 
-pub struct Codeforces {
-    pub server_url: Url,
-    pub identy: String,
-    contest_url: Url,
-    pub user_agent: String,
-    pub dialect: language::DialectParser,
-    pub retry_limit: i64,
-    pub cookie_file: Option<PathBuf>,
-    cookie_store: CookieStore,
-    client: reqwest::Client,
-}
-
 impl CodeforcesBuilder {
     pub fn build(self) -> Result<Codeforces> {
         let b = self;
@@ -228,6 +216,18 @@ impl CodeforcesBuilder {
 
         Ok(self)
     }
+}
+
+pub struct Codeforces {
+    pub server_url: Url,
+    pub identy: String,
+    contest_url: Url,
+    pub user_agent: String,
+    pub dialect: language::DialectParser,
+    pub retry_limit: i64,
+    pub cookie_file: Option<PathBuf>,
+    cookie_store: CookieStore,
+    client: reqwest::Client,
 }
 
 impl Codeforces {
