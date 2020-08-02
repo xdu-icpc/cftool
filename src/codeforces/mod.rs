@@ -98,7 +98,7 @@ impl CodeforcesBuilder {
             .join(&contest_path)
             .chain_err(|| "can not parse contest path into URL")?;
 
-        let cxx = b.cxx_dialect.as_ref().map_or("c++17", |x| x.as_ref());
+        let cxx = b.cxx_dialect.as_ref().map_or("c++17-64", |x| x.as_ref());
         let py = b.py_dialect.as_ref().map_or("py3", |x| x.as_ref());
 
         let dialect =

@@ -11,6 +11,8 @@ pub fn cxx_dialect_recognize(d: &str) -> Result<&'static str> {
         "c++11" | "cxx11" | "cpp11" | "c++0x" | "cxx0x" | "cpp0x" => "c++11",
         "c++14" | "cxx14" | "cpp14" | "c++1y" | "cxx1y" | "cpp1y" => "c++14",
         "c++17" | "cxx17" | "cpp17" | "c++1z" | "cxx1z" | "cpp1z" => "c++17",
+        "c++-64" | "cxx-64" | "cpp-64" | "c++17-64" | "cxx17-64" | "cpp17-64" | "c++1z-64"
+        | "cxx1z-64" | "cpp1z-64" => "c++17-64",
         _ => bail!("unknown or unsupported C++ dialect: {}", d),
     })
 }
@@ -28,6 +30,7 @@ pub fn py_dialect_recognize(d: &str) -> Result<&'static str> {
 pub fn get_lang_dialect(dialect: &str) -> Result<&'static str> {
     Ok(match dialect {
         "c" => "43",
+        "c++17-64" => "61",
         "c++17" => "54",
         "c++14" => "50",
         "c++11" => "42",
