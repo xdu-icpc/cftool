@@ -30,7 +30,7 @@ enum CookieLocation {
 }
 
 pub struct CodeforcesBuilder {
-    server_url: String,
+    server_url: Option<String>,
     identy: Option<String>,
     user_agent: String,
     cxx_dialect: Option<String>,
@@ -62,7 +62,12 @@ impl CodeforcesBuilder {
             }
         };
 
-        let server_url = Url::parse(&b.server_url).chain_err(|| "can not parse server URL")?;
+        let server_url = Url::parse(
+            b.server_url
+                .as_ref()
+                .map_or("https://codeforces.com", |x| x.as_ref()),
+        )
+        .chain_err(|| "can not parse server URL")?;
 
         match server_url.scheme() {
             "http" | "https" => (),
@@ -118,7 +123,7 @@ impl CodeforcesBuilder {
     }
 
     pub fn server_url(mut self, u: &str) -> Self {
-        self.server_url = u.to_owned();
+        self.server_url = Some(u.to_owned());
         self
     }
 
@@ -233,7 +238,7 @@ pub struct Codeforces {
 impl Codeforces {
     pub fn builder() -> CodeforcesBuilder {
         CodeforcesBuilder {
-            server_url: "https://codeforces.com".to_owned(),
+            server_url: None,
             identy: None,
             user_agent: String::from(user_agent()),
             cxx_dialect: None,
