@@ -31,7 +31,7 @@ pub struct CodeforcesBuilder {
     retry_limit: i64,
     no_cookie: bool,
 
-    contest_path: Option<PathBuf>,
+    contest_path: Option<String>,
 }
 
 impl CodeforcesBuilder {
@@ -72,12 +72,7 @@ impl CodeforcesBuilder {
             bail!("contest path is not set");
         }
 
-        let contest_path = b
-            .contest_path
-            .unwrap()
-            .to_str()
-            .map(|x| x.to_owned())
-            .chain_err(|| "contest path is not valid UTF-8")?;
+        let contest_path = b.contest_path.unwrap();
 
         let contest_url = server_url
             .join(&contest_path)
@@ -164,7 +159,7 @@ impl CodeforcesBuilder {
 
     pub fn contest_path<S: ToString>(mut self, s: S) -> Self {
         /* '/' for url::Url::join interface. */
-        self.contest_path = Some(PathBuf::from(s.to_string() + "/"));
+        self.contest_path = Some(s.to_string() + "/");
         self
     }
 
