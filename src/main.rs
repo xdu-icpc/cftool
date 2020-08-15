@@ -1,41 +1,23 @@
 mod codeforces;
 mod verdict;
+use codeforces::response::Response;
 use codeforces::Codeforces;
 use log::{debug, error, info, warn};
-use reqwest::Response;
-use std::error::Error;
+use reqwest::Method;
 use std::process::exit;
 use url::Url;
 
 #[derive(Debug)]
-struct CSRFError;
+struct CSRFError {
+    reason: &'static str,
+}
 
 impl std::error::Error for CSRFError {}
 
 impl std::fmt::Display for CSRFError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "no CSRF token found")
+        write!(f, "can not get CSRF token: {}", self.reason)
     }
-}
-
-fn get_csrf_token_str(txt: &str) -> Result<String, CSRFError> {
-    use regex::Regex;
-    let re = Regex::new(r"meta name=.X-Csrf-Token. content=.(.*)./>").unwrap();
-    let cap = re.captures(txt);
-    let cap = match cap {
-        Some(cap) => cap,
-        None => return Err(CSRFError {}),
-    };
-    let csrf = match cap.get(1) {
-        Some(csrf) => csrf.as_str(),
-        None => return Err(CSRFError {}),
-    };
-    Ok(String::from(csrf))
-}
-
-fn get_csrf_token(resp: &mut Response) -> Result<String, Box<dyn Error>> {
-    let txt = resp.text()?;
-    Ok(get_csrf_token_str(&txt)?)
 }
 
 fn http_get(url: &Url, cfg: &mut Codeforces) -> Response {
@@ -46,8 +28,8 @@ fn http_get(url: &Url, cfg: &mut Codeforces) -> Response {
         exit(1);
     });
 
-    if !resp.status().is_success() && !resp.status().is_redirection() {
-        error!("GET {} failed with status: {}", url.path(), resp.status());
+    if let Response::Other(status) = resp {
+        error!("GET {} failed with status: {}", url.path(), status);
         exit(1);
     }
 
@@ -108,19 +90,20 @@ fn poll_or_query_verdict(url: &Url, cfg: &mut Codeforces, poll: bool, no_color: 
     let mut wait = true;
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
-        let mut resp = http_get(url, cfg);
-        let txt = resp.text().unwrap_or_else(|e| {
-            error!("can not parse response body into text: {}", e);
+        let resp = http_get(url, cfg);
+        let txt = if let Response::Content(t) = resp {
+            t
+        } else {
+            error!("response does not have content");
             exit(1);
-        });
+        };
         let v = print_verdict(&txt, !no_color);
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
-            let csrf = get_csrf_token_str(&txt);
-            if let Err(e) = csrf {
-                error!("can not get csrf token: {}", e);
-                error!("skip compilation error info");
+            let csrf = cfg.get_csrf_token();
+            if csrf.is_none() {
+                error!("can not get csrf token, skip compilation error info");
                 return;
             }
 
@@ -422,32 +405,16 @@ fn main() {
         exit(1);
     });
 
-    let submit_url = cfg.get_contest_url().join("submit").unwrap();
-
-    let resp_try = http_get(&submit_url, &mut cfg);
-
-    // The cookie contains session ID so we should save it.
-    cfg.store_cookie(&resp_try).unwrap_or_else(|e| {
-        error!("can not store cookie: {}", e);
+    let logon = cfg.probe_login_status().unwrap_or_else(|e| {
+        error!("can not probe if we are already logon: {}", e);
         exit(1);
     });
 
-    let mut resp = if resp_try.status().is_redirection() {
+    let submit_url = cfg.get_contest_url().join("submit").unwrap();
+
+    if !logon {
         // We are redirected.
         info!("authentication required");
-
-        let login_url = cfg.server_url.join("enter").unwrap_or_else(|err| {
-            error!("can not get login url: {}", err);
-            exit(1);
-        });
-
-        let mut resp = http_get(&login_url, &mut cfg);
-        let csrf = get_csrf_token(&mut resp).unwrap_or_else(|err| {
-            error!("failed to get CSRF token: {}", err);
-            exit(1);
-        });
-
-        debug!("CSRF token for /enter is {}", csrf);
 
         // Read password
         let prompt = format!("[cftool] password for {}: ", &cfg.identy);
@@ -456,50 +423,24 @@ fn main() {
             exit(1);
         });
 
-        // Prepare the form data.
-        use std::collections::HashMap;
-        let mut params = HashMap::new();
-        params.insert("handleOrEmail", cfg.identy.as_str());
-        params.insert("password", passwd.as_str());
-        params.insert("csrf_token", csrf.as_str());
-        params.insert("bfaa", "");
-        params.insert("ftaa", "");
-        params.insert("action", "enter");
-        params.insert("remember", "on");
-
-        info!("POST /enter");
-        let resp = cfg
-            .post(login_url.as_str())
-            .unwrap()
-            .form(&params)
-            .send()
-            .unwrap_or_else(|err| {
-                error!("POST /enter: {}", err);
-                exit(1);
-            });
-        if !resp.status().is_success() && !resp.status().is_redirection() {
-            error!("POST /enter: status = {}", resp.status());
-            exit(1);
-        }
-
-        cfg.store_cookie(&resp).unwrap_or_else(|e| {
-            error!("can not save cookie: {}", e);
+        cfg.login(&passwd).unwrap_or_else(|err| {
+            error!("failed to login: {}", err);
             exit(1);
         });
 
         // Retry to GET the submit page.
-        let resp = http_get(&submit_url, &mut cfg);
-        if resp.status().is_redirection() {
+        let logon = cfg.probe_login_status().unwrap_or_else(|e| {
+            error!("can not probe if we are already logon: {}", e);
+            exit(1);
+        });
+        if !logon {
             error!(
                 "authentication failed, maybe identy or password is\
                  wrong"
             );
             exit(1);
         }
-        resp
-    } else {
-        resp_try
-    };
+    }
 
     match cfg.maybe_save_cookie() {
         Err(e) => error!("cannot save cookie: {}", e),
@@ -523,47 +464,48 @@ fn main() {
         Action::None => unreachable!(),
     };
 
-    let csrf = get_csrf_token(&mut resp).unwrap_or_else(|err| {
-        error!("failed to get CSRF token: {}", err);
-        exit(1);
-    });
+    let csrf = cfg.get_csrf_token().unwrap();
 
     debug!("CSRF token for {} is {}", submit_url.path(), csrf);
 
-    use reqwest::multipart::{Form, Part};
-    let src = Part::file(source).unwrap_or_else(|err| {
-        error!("can not load file {} to be submitted: {}", source, err);
-        exit(1);
-    });
-    let form = Form::new()
-        .text("csrf_token", String::from(csrf))
-        .text("ftaa", "")
-        .text("bfaa", "")
-        .text("action", "submitSolutionFormSubmitted")
-        .text("submittedProblemIndex", problem)
-        .text("programTypeId", lang)
-        .text("source", "")
-        .text("tabSize", "4")
-        .text("sourceCodeConfirmed", "true")
-        .part("sourceFile", src);
-
     info!("POST {}", submit_url.path());
     let resp = cfg
-        .post(submit_url.as_str())
-        .unwrap()
-        .multipart(form)
-        .send()
+        .http_request(
+            Method::POST,
+            &submit_url,
+            |x| {
+                use reqwest::multipart::{Form, Part};
+                let src = Part::file(source).unwrap_or_else(|err| {
+                    error!("can not load file {} to be submitted: {}", source, err);
+                    exit(1);
+                });
+                let form = Form::new()
+                    .text("csrf_token", String::from(&csrf))
+                    .text("ftaa", "")
+                    .text("bfaa", "")
+                    .text("action", "submitSolutionFormSubmitted")
+                    .text("submittedProblemIndex", problem.clone())
+                    .text("programTypeId", lang)
+                    .text("source", "")
+                    .text("tabSize", "4")
+                    .text("sourceCodeConfirmed", "true")
+                    .part("sourceFile", src);
+                x.multipart(form)
+            },
+            false,
+        )
         .unwrap_or_else(|err| {
-            error!("POST {} failed: {}", submit_url, err);
+            error!("POST {} failed: {}", &submit_url, err);
             exit(1);
         });
 
-    if !resp.status().is_redirection() {
-        if resp.status().is_success() {
-            error!("Codeforces doesn't like the code, please recheck");
-            exit(1);
-        }
-        error!("POST {} failed with status: {}", submit_url, resp.status());
+    if let Response::Content(_) = resp {
+        error!("Codeforces doesn't like the code, please recheck");
+        exit(1);
+    }
+
+    if let Response::Other(status) = resp {
+        error!("POST {} failed with status: {}", submit_url, status);
         exit(1);
     }
 

@@ -1,13 +1,17 @@
-mod config;
-pub mod language;
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
-use reqwest::header::{COOKIE, LOCATION, SET_COOKIE, USER_AGENT};
-use reqwest::{Method, RedirectPolicy, RequestBuilder, Response};
+use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
+use reqwest::{Method, RedirectPolicy, RequestBuilder};
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use url::Url;
+
+mod config;
+pub mod language;
+pub mod response;
+
+use response::Response;
 
 mod error {
     error_chain::error_chain! {}
@@ -73,7 +77,6 @@ impl CodeforcesBuilder {
         }
 
         let contest_path = b.contest_path.unwrap();
-
         let contest_url = server_url
             .join(&contest_path)
             .chain_err(|| "can not parse contest path into URL")?;
@@ -84,8 +87,7 @@ impl CodeforcesBuilder {
         let dialect =
             language::DialectParser::new(cxx, py).chain_err(|| "can not parse dialect setting")?;
 
-        let user_agent = b.user_agent
-            .unwrap_or("cftool/0.4.1 (cftool)".to_owned());
+        let user_agent = b.user_agent.unwrap_or("cftool/0.4.1 (cftool)".to_owned());
 
         let mut cf = Codeforces {
             server_url: server_url,
@@ -103,6 +105,7 @@ impl CodeforcesBuilder {
                 .redirect(RedirectPolicy::none())
                 .build()
                 .chain_err(|| "can not build HTTP client")?,
+            csrf: None,
         };
 
         if let Err(e) = cf.load_cookie_from_file() {
@@ -213,6 +216,29 @@ impl CodeforcesBuilder {
     }
 }
 
+fn get_csrf_token_str(txt: &str) -> Option<String> {
+    use regex::Regex;
+    let re = Regex::new(r"meta name=.X-Csrf-Token. content=.(.*)./>").unwrap();
+    let cap = re.captures(txt);
+    let cap = match cap {
+        Some(cap) => cap,
+        None => return None,
+    };
+    let csrf = match cap.get(1) {
+        Some(csrf) => csrf.as_str(),
+        None => return None,
+    };
+    Some(String::from(csrf))
+}
+
+fn get_csrf_token(resp: &Response) -> Option<String> {
+    if let Response::Content(txt) = resp {
+        get_csrf_token_str(&txt)
+    } else {
+        None
+    }
+}
+
 pub struct Codeforces {
     pub server_url: Url,
     pub identy: String,
@@ -223,6 +249,7 @@ pub struct Codeforces {
     cookie_file: Option<PathBuf>,
     cookie_store: CookieStore,
     client: reqwest::Client,
+    csrf: Option<String>,
 }
 
 impl Codeforces {
@@ -280,26 +307,11 @@ impl Codeforces {
     }
 
     fn is_ssl_redirection(&self, resp: &Response) -> bool {
-        if !resp.status().is_redirection() {
+        let url = if let Response::Redirection(url) = resp {
+            url
+        } else {
             return false;
-        }
-
-        let hdr_location = resp.headers().get(LOCATION);
-        if hdr_location.is_none() {
-            return false;
-        }
-
-        let s = hdr_location.unwrap().to_str();
-        if s.is_err() {
-            return false;
-        }
-
-        let url = Url::parse(s.unwrap());
-        if url.is_err() {
-            return false;
-        }
-
-        let url = url.unwrap();
+        };
 
         url.scheme() == "https"
             && self.server_url.scheme() != "https"
@@ -315,7 +327,7 @@ impl Codeforces {
         self.http_request(Method::GET, path, |x| x, true)
     }
 
-    fn http_request<P, F>(
+    pub fn http_request<P, F>(
         &mut self,
         method: Method,
         path: P,
@@ -326,6 +338,7 @@ impl Codeforces {
         P: AsRef<str>,
         F: Fn(RequestBuilder) -> RequestBuilder,
     {
+        self.csrf = None;
         let mut retry_limit = if retry { self.retry_limit } else { 1 };
         loop {
             let method = method.clone();
@@ -343,11 +356,19 @@ impl Codeforces {
                 }
             }
 
+            let resp = resp.unwrap();
+
+            self.store_cookie(&resp)
+                .chain_err(|| "can not store cookie")?;
+
+            let resp = Response::wrap(resp).chain_err(|| "glitched HTTP response");
+
             if let Ok(r) = &resp {
                 if self.is_ssl_redirection(r) {
                     self.ensure_ssl();
                     continue;
                 }
+                self.csrf = get_csrf_token(r);
             }
 
             return resp.chain_err(|| "http request failed");
@@ -365,15 +386,7 @@ impl Codeforces {
             .header(COOKIE, &cookie)
     }
 
-    pub fn post<P: AsRef<str>>(&self, p: P) -> Result<RequestBuilder> {
-        let u = self
-            .server_url
-            .join(p.as_ref())
-            .chain_err(|| "can not build a URL from the path")?;
-        Ok(self.add_header(self.client.post(u.as_str())))
-    }
-
-    pub fn store_cookie(&mut self, resp: &Response) -> Result<()> {
+    pub fn store_cookie(&mut self, resp: &reqwest::Response) -> Result<()> {
         let u = Url::parse(resp.url().as_str()).chain_err(|| "bad url")?;
         resp.headers()
             .get_all(SET_COOKIE)
@@ -414,7 +427,69 @@ impl Codeforces {
         params.insert("submissionId", id);
         params.insert("csrf_token", csrf);
 
-        let mut resp = self.http_request(Method::POST, u.as_str(), |x| x.form(&params), true)?;
-        resp.json().chain_err(|| "can not parse XHR response")
+        let resp = self.http_request(Method::POST, u.as_str(), |x| x.form(&params), true)?;
+        if let Response::Content(data) = resp {
+            Ok(serde_json::from_str(&data).chain_err(|| "cannot parse JSON")?)
+        } else {
+            bail!("response have no content");
+        }
+    }
+
+    pub fn probe_login_status(&mut self) -> Result<bool> {
+        let submit_url = self
+            .contest_url
+            .join("submit")
+            .chain_err(|| "can not parse URL for submitting")?;
+        let resp = self
+            .http_get(&submit_url)
+            .chain_err(|| format!("GET {} failed", submit_url))?;
+
+        match resp {
+            Response::Redirection(_) => Ok(false),
+            Response::Content(_) => Ok(true),
+            Response::Other(status) => bail!("GET {}: status = {}", submit_url, status),
+        }
+    }
+
+    pub fn login(&mut self, password: &str) -> Result<()> {
+        let login_url = self
+            .server_url
+            .join("enter")
+            .chain_err(|| "can not get login url: {}")?;
+
+        let mut csrf = self.get_csrf_token();
+        let server_url = self.server_url.clone();
+        if csrf.is_none() {
+            self.http_get(&server_url)?;
+            csrf = self.get_csrf_token();
+        }
+
+        let csrf = csrf.chain_err(|| "failed to get CSRF token")?;
+
+        // Prepare the form data.
+        use std::collections::HashMap;
+        let mut params = HashMap::new();
+        let identy = self.identy.clone();
+        params.insert("handleOrEmail", identy.as_str());
+        params.insert("password", password);
+        params.insert("csrf_token", csrf.as_str());
+        params.insert("bfaa", "");
+        params.insert("ftaa", "");
+        params.insert("action", "enter");
+        params.insert("remember", "on");
+
+        let resp = self
+            .http_request(Method::POST, login_url, |x| x.form(&params), false)
+            .chain_err(|| "POST /enter")?;
+
+        if let Response::Other(status) = resp {
+            bail!("POST /enter: status = {}", status);
+        }
+
+        Ok(())
+    }
+
+    pub fn get_csrf_token(&mut self) -> Option<String> {
+        self.csrf.take()
     }
 }
