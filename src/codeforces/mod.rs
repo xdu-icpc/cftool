@@ -247,7 +247,7 @@ pub struct Codeforces {
     identy: String,
     contest_url: Url,
     user_agent: String,
-    pub dialect: language::DialectParser,
+    dialect: language::DialectParser,
     retry_limit: i64,
     cookie_file: Option<PathBuf>,
     cookie_store: CookieStore,
@@ -306,10 +306,6 @@ impl Codeforces {
         Ok(self.cookie_file.as_ref())
     }
 
-    pub fn get_contest_url(&self) -> &Url {
-        &self.contest_url
-    }
-
     fn is_ssl_redirection(&self, resp: &Response) -> bool {
         let url = if let Response::Redirection(url) = resp {
             url
@@ -328,10 +324,10 @@ impl Codeforces {
     }
 
     fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
-        self.http_request(Method::GET, path, |x| x, true)
+        self.http_request(Method::GET, path, |x| Ok(x), true)
     }
 
-    pub fn http_request<P, F>(
+    fn http_request<P, F>(
         &mut self,
         method: Method,
         path: P,
@@ -340,7 +336,7 @@ impl Codeforces {
     ) -> Result<Response>
     where
         P: AsRef<str>,
-        F: Fn(RequestBuilder) -> RequestBuilder,
+        F: Fn(RequestBuilder) -> Result<RequestBuilder>,
     {
         self.csrf = None;
         let mut retry_limit = if retry { self.retry_limit } else { 1 };
@@ -350,7 +346,7 @@ impl Codeforces {
                 .server_url
                 .join(path.as_ref())
                 .chain_err(|| "can not build a URL from the path")?;
-            let resp = decorator(self.add_header(self.client.request(method, u.as_str()))).send();
+            let resp = decorator(self.add_header(self.client.request(method, u.as_str())))?.send();
 
             if let Err(e) = &resp {
                 if e.is_timeout() && retry_limit > 0 {
@@ -390,7 +386,7 @@ impl Codeforces {
             .header(COOKIE, &cookie)
     }
 
-    pub fn store_cookie(&mut self, resp: &reqwest::Response) -> Result<()> {
+    fn store_cookie(&mut self, resp: &reqwest::Response) -> Result<()> {
         let u = Url::parse(resp.url().as_str()).chain_err(|| "bad url")?;
         resp.headers()
             .get_all(SET_COOKIE)
@@ -429,7 +425,7 @@ impl Codeforces {
         params.insert("submissionId", id);
         params.insert("csrf_token", csrf);
 
-        let resp = self.http_request(Method::POST, u.as_str(), |x| x.form(&params), true)?;
+        let resp = self.http_request(Method::POST, u.as_str(), |x| Ok(x.form(&params)), true)?;
         if let Response::Content(data) = resp {
             Ok(serde_json::from_str(&data).chain_err(|| "cannot parse JSON")?)
         } else {
@@ -479,7 +475,7 @@ impl Codeforces {
         params.insert("remember", "on");
 
         let resp = self
-            .http_request(Method::POST, login_url, |x| x.form(&params), false)
+            .http_request(Method::POST, login_url, |x| Ok(x.form(&params)), false)
             .chain_err(|| "POST /enter")?;
 
         if let Response::Other(status) = resp {
@@ -509,5 +505,61 @@ impl Codeforces {
 
     pub fn get_identy(&self) -> &str {
         self.identy.as_str()
+    }
+
+    pub fn submit(&mut self, problem: &str, src_path: &str, dialect: Option<&str>) -> Result<()> {
+        let dialect = match dialect {
+            Some(d) => language::get_lang_dialect(d),
+            None => {
+                let ext = std::path::Path::new(src_path)
+                    .extension()
+                    .chain_err(|| "source file has no extension")?
+                    .to_str()
+                    .chain_err(|| "source file extension is not UTF-8")?;
+                self.dialect.get_lang_ext(ext)
+            }
+        }
+        .chain_err(|| "cannot determine source file language")?;
+
+        let url = self
+            .contest_url
+            .join("submit")
+            .chain_err(|| "cannot build submit URL")?;
+
+        let mut csrf = self.csrf.take();
+        if csrf.is_none() {
+            self.http_get(&url)?;
+            csrf = self.csrf.take();
+        }
+        let csrf = csrf.chain_err(|| "cannot get CSRF token")?;
+
+        let resp = self.http_request(
+            Method::POST,
+            &url,
+            |x| {
+                use reqwest::multipart::{Form, Part};
+                let src = Part::file(src_path).chain_err(|| format!("cannot load {}", src_path))?;
+
+                let form = Form::new()
+                    .text("csrf_token", csrf.clone())
+                    .text("action", "submitSolutionFormSubmitted")
+                    .text("submittedProblemIndex", problem.to_owned())
+                    .text("programTypeId", dialect)
+                    .text("tabSize", "4")
+                    .text("sourceCodeConfirmed", "true")
+                    .part("sourceFile", src);
+                Ok(x.multipart(form))
+            },
+            false,
+        )?;
+
+        match resp {
+            Response::Other(status) => bail!("POST failed, status = {}", status),
+            Response::Content(_) => bail!(
+                "server don't like the code, recheck \
+                - maybe submitting same code multiple times?"
+            ),
+            Response::Redirection(_) => Ok(()),
+        }
     }
 }

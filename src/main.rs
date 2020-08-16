@@ -1,8 +1,7 @@
 mod codeforces;
 use codeforces::Codeforces;
-use codeforces::{Response, Verdict};
+use codeforces::Verdict;
 use log::{debug, error, info, warn};
-use reqwest::Method;
 use std::process::exit;
 
 #[derive(Debug)]
@@ -264,22 +263,6 @@ fn main() {
     }
 
     let source = matches.value_of("source").unwrap_or("");
-    let ext = if let Action::Submit(_) = action {
-        match std::path::Path::new(source).extension() {
-            Some(e) => e.to_str().unwrap_or_else(|| {
-                error!(
-                    "extension of {} is not valid UTF-8, \
-                     can not determine the language",
-                    source
-                );
-                exit(1);
-            }),
-            None => "",
-        }
-    } else {
-        ""
-    };
-
     let no_color = matches.occurrences_of("no-color") > 0;
 
     let mut builder = Codeforces::builder();
@@ -363,19 +346,7 @@ fn main() {
         exit(1);
     });
 
-    let lang = if let Action::Submit(_) = action {
-        if let Some(d) = matches.value_of("dialect") {
-            codeforces::language::get_lang_dialect(d)
-        } else {
-            cfg.dialect.get_lang_ext(ext)
-        }
-    } else {
-        Ok("")
-    }
-    .unwrap_or_else(|e| {
-        error!("can not parse language dialect: {}", e);
-        exit(1);
-    });
+    let dialect = matches.value_of("dialect");
 
     let logon = cfg.probe_login_status().unwrap_or_else(|e| {
         error!("can not probe if we are already logon: {}", e);
@@ -433,51 +404,10 @@ fn main() {
         Action::None => unreachable!(),
     };
 
-    let submit_url = cfg.get_contest_url().join("submit").unwrap();
-    let csrf = cfg.get_csrf_token().unwrap();
-
-    debug!("CSRF token for {} is {}", submit_url.path(), csrf);
-
-    info!("POST {}", submit_url.path());
-    let resp = cfg
-        .http_request(
-            Method::POST,
-            &submit_url,
-            |x| {
-                use reqwest::multipart::{Form, Part};
-                let src = Part::file(source).unwrap_or_else(|err| {
-                    error!("can not load file {} to be submitted: {}", source, err);
-                    exit(1);
-                });
-                let form = Form::new()
-                    .text("csrf_token", String::from(&csrf))
-                    .text("ftaa", "")
-                    .text("bfaa", "")
-                    .text("action", "submitSolutionFormSubmitted")
-                    .text("submittedProblemIndex", problem.clone())
-                    .text("programTypeId", lang)
-                    .text("source", "")
-                    .text("tabSize", "4")
-                    .text("sourceCodeConfirmed", "true")
-                    .part("sourceFile", src);
-                x.multipart(form)
-            },
-            false,
-        )
-        .unwrap_or_else(|err| {
-            error!("POST {} failed: {}", &submit_url, err);
-            exit(1);
-        });
-
-    if let Response::Content(_) = resp {
-        error!("Codeforces doesn't like the code, please recheck");
+    cfg.submit(&problem, source, dialect).unwrap_or_else(|err| {
+        error!("submit failed: {}", err);
         exit(1);
-    }
-
-    if let Response::Other(status) = resp {
-        error!("POST {} failed with status: {}", submit_url, status);
-        exit(1);
-    }
+    });
 
     if need_poll {
         poll_or_query_verdict(&mut cfg, true, no_color);
