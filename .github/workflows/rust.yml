@@ -27,4 +27,6 @@ jobs:
         uses: 'actions/upload-artifact@v2'
         with:
           name: artifact ${{ matrix.os }}
-          path: target/release/cftool
+          path: |
+            target/release/cftool
+            target/release/cftool.exe
