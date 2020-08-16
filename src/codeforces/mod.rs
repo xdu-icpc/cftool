@@ -1,8 +1,10 @@
 use cookie_store::CookieStore;
 use error_chain::bail;
 use log::info;
+use reqwest::blocking::RequestBuilder;
 use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
-use reqwest::{Method, RedirectPolicy, RequestBuilder};
+use reqwest::redirect;
+use reqwest::Method;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -103,9 +105,8 @@ impl CodeforcesBuilder {
             cookie_store: Default::default(),
             // We don't use redirection following feature of reqwest.
             // It will throw set-cookie in the header of redirect response.
-            client: reqwest::Client::builder()
-                .gzip(true)
-                .redirect(RedirectPolicy::none())
+            client: reqwest::blocking::Client::builder()
+                .redirect(redirect::Policy::none())
                 .build()
                 .chain_err(|| "can not build HTTP client")?,
             csrf: None,
@@ -251,7 +252,7 @@ pub struct Codeforces {
     retry_limit: i64,
     cookie_file: Option<PathBuf>,
     cookie_store: CookieStore,
-    client: reqwest::Client,
+    client: reqwest::blocking::Client,
     csrf: Option<String>,
 }
 
@@ -386,7 +387,7 @@ impl Codeforces {
             .header(COOKIE, &cookie)
     }
 
-    fn store_cookie(&mut self, resp: &reqwest::Response) -> Result<()> {
+    fn store_cookie(&mut self, resp: &reqwest::blocking::Response) -> Result<()> {
         let u = Url::parse(resp.url().as_str()).chain_err(|| "bad url")?;
         resp.headers()
             .get_all(SET_COOKIE)
@@ -537,7 +538,7 @@ impl Codeforces {
             Method::POST,
             &url,
             |x| {
-                use reqwest::multipart::{Form, Part};
+                use reqwest::blocking::multipart::{Form, Part};
                 let src = Part::file(src_path).chain_err(|| format!("cannot load {}", src_path))?;
 
                 let form = Form::new()
