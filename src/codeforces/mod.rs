@@ -92,7 +92,7 @@ impl CodeforcesBuilder {
         let dialect =
             language::DialectParser::new(cxx, py).chain_err(|| "can not parse dialect setting")?;
 
-        let user_agent = b.user_agent.unwrap_or("cftool/0.4.1 (cftool)".to_owned());
+        let user_agent = b.user_agent.unwrap_or("cftool/0.5.0 (cftool)".to_owned());
 
         let mut cf = Codeforces {
             server_url: server_url,
