@@ -356,7 +356,7 @@ impl Codeforces {
                 }
             }
 
-            let resp = resp.unwrap();
+            let resp = resp.chain_err(|| "can not get response")?;
 
             self.store_cookie(&resp)
                 .chain_err(|| "can not store cookie")?;
