@@ -382,14 +382,12 @@ fn main() {
         exit(1);
     });
 
-    let submit_url = cfg.get_contest_url().join("submit").unwrap();
-
     if !logon {
         // We are redirected.
         info!("authentication required");
 
         // Read password
-        let prompt = format!("[cftool] password for {}: ", &cfg.identy);
+        let prompt = format!("[cftool] password for {}: ", cfg.get_identy());
         let passwd = rpassword::prompt_password_stderr(&prompt).unwrap_or_else(|err| {
             error!("failed reading password: {}", err);
             exit(1);
@@ -435,6 +433,7 @@ fn main() {
         Action::None => unreachable!(),
     };
 
+    let submit_url = cfg.get_contest_url().join("submit").unwrap();
     let csrf = cfg.get_csrf_token().unwrap();
 
     debug!("CSRF token for {} is {}", submit_url.path(), csrf);

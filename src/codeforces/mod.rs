@@ -243,8 +243,8 @@ fn get_csrf_token(resp: &Response) -> Option<String> {
 }
 
 pub struct Codeforces {
-    pub server_url: Url,
-    pub identy: String,
+    server_url: Url,
+    identy: String,
     contest_url: Url,
     user_agent: String,
     pub dialect: language::DialectParser,
@@ -327,7 +327,7 @@ impl Codeforces {
         self.contest_url.set_scheme("https").unwrap();
     }
 
-    pub fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
+    fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
         self.http_request(Method::GET, path, |x| x, true)
     }
 
@@ -505,5 +505,9 @@ impl Codeforces {
             bail!("response does not have content");
         };
         Verdict::parse(&txt).chain_err(|| "cannot parse verdict")
+    }
+
+    pub fn get_identy(&self) -> &str {
+        self.identy.as_str()
     }
 }
