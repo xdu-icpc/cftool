@@ -1,15 +1,9 @@
-use std::error::Error;
-
-#[derive(Debug)]
-struct ParseError;
-
-impl std::error::Error for ParseError {}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "can not parse my submission page")
-    }
+mod error {
+    error_chain::error_chain! {}
 }
+
+use error::*;
+use error_chain::bail;
 
 pub enum VerdictCode {
     Accepted,
@@ -33,7 +27,7 @@ impl Verdict {
         }
     }
 
-    pub fn parse(txt: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn parse(txt: &str) -> Result<Self> {
         use regex::Regex;
         use VerdictCode::*;
 
@@ -44,7 +38,7 @@ impl Verdict {
             .unwrap();
         let caps = match re.captures(txt) {
             Some(c) => c,
-            None => return Err(Box::new(ParseError {})),
+            None => bail!("no match for submission ID"),
         };
         let id = &caps["id"];
         let line = &caps["line"];
@@ -78,7 +72,7 @@ impl Verdict {
             regex::Regex::new(r"<span class='verdict-(?P<verdict>.*)'>(?P<message>.*)</").unwrap();
         let caps = match re.captures(&line) {
             Some(c) => c,
-            None => return Err(Box::new(ParseError {})),
+            None => bail!("no match for verdict"),
         };
 
         // Remove HTML labels like <span> from message
@@ -90,7 +84,7 @@ impl Verdict {
             "accepted" => Accepted,
             "rejected" | "failed" => Rejected,
             "waiting" => Waiting,
-            _ => return Err(Box::new(ParseError {})),
+            _ => bail!("unknown verdict {}", &caps["verdict"]),
         };
 
         Ok(Verdict::new(code, clean_msg, id))

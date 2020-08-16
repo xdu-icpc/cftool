@@ -1,11 +1,9 @@
 mod codeforces;
-mod verdict;
-use codeforces::response::Response;
 use codeforces::Codeforces;
+use codeforces::{Response, Verdict};
 use log::{debug, error, info, warn};
 use reqwest::Method;
 use std::process::exit;
-use url::Url;
 
 #[derive(Debug)]
 struct CSRFError {
@@ -18,22 +16,6 @@ impl std::fmt::Display for CSRFError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "can not get CSRF token: {}", self.reason)
     }
-}
-
-fn http_get(url: &Url, cfg: &mut Codeforces) -> Response {
-    info!("GET {} from {}", url.path(), url.host().unwrap());
-
-    let resp = cfg.http_get(url.path()).unwrap_or_else(|e| {
-        error!("GET {} failed: {}", url.path(), e);
-        exit(1);
-    });
-
-    if let Response::Other(status) = resp {
-        error!("GET {} failed with status: {}", url.path(), status);
-        exit(1);
-    }
-
-    resp
 }
 
 fn set_from_file(
@@ -49,21 +31,15 @@ fn set_from_file(
     }
 }
 
-fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
+fn print_verdict(v: &Verdict, color: bool) {
     use termcolor::ColorChoice::Auto;
     use termcolor::{Buffer, BufferWriter};
-    use verdict::Verdict;
     let w = BufferWriter::stdout(Auto);
     let mut buf = if color {
         w.buffer()
     } else {
         Buffer::no_color()
     };
-
-    let v = Verdict::parse(resp_text).unwrap_or_else(|e| {
-        error!("can not get verdict from response: {}", e);
-        exit(1);
-    });
 
     v.print(&mut buf).unwrap_or_else(|e| {
         error!("can not buffer verdict: {}", e);
@@ -74,8 +50,6 @@ fn print_verdict(resp_text: &str, color: bool) -> verdict::Verdict {
         error!("can not output verdict: {}", e);
         exit(1);
     });
-
-    v
 }
 
 fn get_ce_info(cf: &mut Codeforces, id: &str, csrf: &str) -> String {
@@ -85,29 +59,27 @@ fn get_ce_info(cf: &mut Codeforces, id: &str, csrf: &str) -> String {
     })
 }
 
-fn poll_or_query_verdict(url: &Url, cfg: &mut Codeforces, poll: bool, no_color: bool) {
+fn poll_or_query_verdict(cf: &mut Codeforces, poll: bool, no_color: bool) {
     use std::time::{Duration, SystemTime};
     let mut wait = true;
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
-        let resp = http_get(url, cfg);
-        let txt = if let Response::Content(t) = resp {
-            t
-        } else {
-            error!("response does not have content");
+        let v = cf.get_verdict().unwrap_or_else(|e| {
+            error!("cannot get verdict: {}", e);
             exit(1);
-        };
-        let v = print_verdict(&txt, !no_color);
+        });
+
+        print_verdict(&v, !no_color);
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
-            let csrf = cfg.get_csrf_token();
+            let csrf = cf.get_csrf_token();
             if csrf.is_none() {
                 error!("can not get csrf token, skip compilation error info");
                 return;
             }
 
-            let s = get_ce_info(cfg, v.get_id(), &csrf.unwrap());
+            let s = get_ce_info(cf, v.get_id(), &csrf.unwrap());
             println!("{}", "===================================");
             print!("{}", s);
         }
@@ -457,8 +429,7 @@ fn main() {
         Action::Submit(p) => p,
         Action::Dry => exit(0),
         Action::Query => {
-            let my_url = cfg.get_contest_url().join("my").unwrap();
-            poll_or_query_verdict(&my_url, &mut cfg, false, no_color);
+            poll_or_query_verdict(&mut cfg, false, no_color);
             exit(0);
         }
         Action::None => unreachable!(),
@@ -510,7 +481,6 @@ fn main() {
     }
 
     if need_poll {
-        let my_url = cfg.get_contest_url().join("my").unwrap();
-        poll_or_query_verdict(&my_url, &mut cfg, true, no_color);
+        poll_or_query_verdict(&mut cfg, true, no_color);
     }
 }

@@ -10,8 +10,10 @@ use url::Url;
 mod config;
 pub mod language;
 pub mod response;
+pub mod verdict;
 
-use response::Response;
+pub type Response = response::Response;
+pub type Verdict = verdict::Verdict;
 
 mod error {
     error_chain::error_chain! {}
@@ -489,5 +491,19 @@ impl Codeforces {
 
     pub fn get_csrf_token(&mut self) -> Option<String> {
         self.csrf.take()
+    }
+
+    pub fn get_verdict(&mut self) -> Result<Verdict> {
+        let url = self
+            .contest_url
+            .join("my")
+            .chain_err(|| "cannot generate status URL")?;
+        let resp = self.http_get(url).chain_err(|| "cannot GET status page")?;
+        let txt = if let Response::Content(t) = resp {
+            t
+        } else {
+            bail!("response does not have content");
+        };
+        Verdict::parse(&txt).chain_err(|| "cannot parse verdict")
     }
 }
