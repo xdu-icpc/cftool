@@ -473,8 +473,6 @@ impl Codeforces {
         params.insert("handleOrEmail", identy.as_str());
         params.insert("password", password);
         params.insert("csrf_token", csrf.as_str());
-        params.insert("bfaa", "");
-        params.insert("ftaa", "");
         params.insert("action", "enter");
         params.insert("remember", "on");
 
