@@ -42,11 +42,11 @@ impl CodeforcesBuilder {
     pub fn build(self) -> Result<Codeforces> {
         let b = self;
 
-        if b.identy.is_none() {
+        let identy = if let Some(value) = b.identy {
+            value
+        } else {
             bail!("identy is not set");
-        }
-
-        let identy = b.identy.unwrap();
+        };
 
         let cookie_file = if b.no_cookie {
             None
@@ -72,11 +72,12 @@ impl CodeforcesBuilder {
             }
         };
 
-        if b.contest_path.is_none() {
+        let contest_path = if let Some(value) = b.contest_path {
+            value
+        } else {
             bail!("contest path is not set");
-        }
+        };
 
-        let contest_path = b.contest_path.unwrap();
         let contest_url = server_url
             .join(&contest_path)
             .chain_err(|| "can not parse contest path into URL")?;
@@ -268,11 +269,12 @@ impl Codeforces {
     }
 
     fn load_cookie_from_file(&mut self) -> Result<()> {
-        if self.cookie_file == None {
+        let path = if let Some(value) = self.cookie_file.as_ref() {
+            value
+        } else {
             return Ok(());
-        }
+        };
 
-        let path = self.cookie_file.as_ref().unwrap();
         if path.exists() {
             let f = std::fs::File::open(path)
                 .chain_err(|| format!("can not open cache file {} for reading", path.display()))?;
@@ -285,11 +287,11 @@ impl Codeforces {
     }
 
     pub fn maybe_save_cookie(&self) -> Result<Option<&PathBuf>> {
-        if self.cookie_file == None {
+        let path = if let Some(value) = self.cookie_file.as_ref() {
+            value
+        } else {
             return Ok(None);
-        }
-
-        let path = self.cookie_file.as_ref().unwrap();
+        };
 
         let mut f = std::fs::OpenOptions::new()
             .write(true)
@@ -419,10 +421,8 @@ impl Codeforces {
     pub fn judgement_protocol(&mut self, id: &str, csrf: &str) -> Result<String> {
         let u = self
             .contest_url
-            .join("../../data/")
-            .unwrap()
-            .join("judgeProtocol")
-            .unwrap();
+            .join("../../data/judgeProtocol")
+            .chain_err(|| "cannot make judgement protocol URL")?;
         let mut params = std::collections::HashMap::new();
         params.insert("submissionId", id);
         params.insert("csrf_token", csrf);
