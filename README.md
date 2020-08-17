@@ -27,6 +27,12 @@ chose "Remember me for a month" on
 
 You can add `-v` or even `-vv` to see more detail of `cftool`.
 
+### Proxies
+
+Use `http_proxy` environment variable to set proxies for http connections,
+or `https_proxy` for https connections.  For example:
+`export https_proxy=socks5://example.org:12345`.
+
 ## Bugs
 
 `cftool` is not tested in real contests yet.  Not sure if it will malfunction
