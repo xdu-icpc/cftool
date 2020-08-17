@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Build
-        run: cargo build --verbose --release
+        run: cargo build --release
       - name: Upload
         uses: 'actions/upload-artifact@v2'
         with:
