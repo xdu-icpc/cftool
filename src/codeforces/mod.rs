@@ -98,13 +98,13 @@ impl CodeforcesBuilder {
             .unwrap_or(format!("cftool/{} (cftool)", VERSION));
 
         let mut cf = Codeforces {
-            server_url: server_url,
-            identy: identy,
-            contest_url: contest_url,
-            user_agent: user_agent,
-            dialect: dialect,
+            server_url,
+            identy,
+            contest_url,
+            user_agent,
+            dialect,
             retry_limit: b.retry_limit,
-            cookie_file: cookie_file,
+            cookie_file,
             cookie_store: Default::default(),
             // We don't use redirection following feature of reqwest.
             // It will throw set-cookie in the header of redirect response.
@@ -328,7 +328,7 @@ impl Codeforces {
     }
 
     fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
-        self.http_request(Method::GET, path, |x| Ok(x), true)
+        self.http_request(Method::GET, path, Ok, true)
     }
 
     fn http_request<P, F>(

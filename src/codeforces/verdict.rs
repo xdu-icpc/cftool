@@ -21,7 +21,7 @@ pub struct Verdict {
 impl Verdict {
     fn new<U: ToString, V: ToString>(code: VerdictCode, msg: U, id: V) -> Self {
         Verdict {
-            code: code,
+            code,
             msg: msg.to_string(),
             id: id.to_string(),
         }
@@ -106,11 +106,11 @@ impl Verdict {
 
         let msg = format!("{} {}", self.id, self.msg);
 
-        w.write(msg.as_bytes())?;
+        w.write_all(msg.as_bytes())?;
         if use_color {
             w.reset()?;
         }
-        w.write(b"\n")?;
+        w.write_all(b"\n")?;
         Ok(())
     }
 

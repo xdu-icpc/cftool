@@ -79,7 +79,7 @@ fn poll_or_query_verdict(cf: &mut Codeforces, poll: bool, no_color: bool) {
             }
 
             let s = get_ce_info(cf, v.get_id(), &csrf.unwrap());
-            println!("{}", "===================================");
+            println!("===================================");
             print!("{}", s);
         }
 
@@ -281,7 +281,6 @@ fn main() {
                 info!("user config file {} does not exist", config_file.display());
             }
             cookie_dir = Some(dir.cache_dir().join("cookie"));
-            ()
         }
         None => {
             warn!(
@@ -289,7 +288,6 @@ fn main() {
                  on the system, cookie won't be saved unless you specify the \
                  location"
             );
-            ()
         }
     };
 
