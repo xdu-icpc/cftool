@@ -93,7 +93,8 @@ impl CodeforcesBuilder {
             language::DialectParser::new(cxx, py).chain_err(|| "can not parse dialect setting")?;
 
         const VERSION: &str = git_version::git_version!();
-        let user_agent = b.user_agent
+        let user_agent = b
+            .user_agent
             .unwrap_or(format!("cftool/{} (cftool)", VERSION));
 
         let mut cf = Codeforces {
