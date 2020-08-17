@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 use url::Url;
 
 mod config;
-pub mod language;
-pub mod response;
-pub mod verdict;
+mod language;
+mod response;
+mod verdict;
 
 pub type Response = response::Response;
 pub type Verdict = verdict::Verdict;
@@ -92,7 +92,9 @@ impl CodeforcesBuilder {
         let dialect =
             language::DialectParser::new(cxx, py).chain_err(|| "can not parse dialect setting")?;
 
-        let user_agent = b.user_agent.unwrap_or("cftool/0.5.0 (cftool)".to_owned());
+        const VERSION: &str = git_version::git_version!();
+        let user_agent = b.user_agent
+            .unwrap_or(format!("cftool/{} (cftool)", VERSION));
 
         let mut cf = Codeforces {
             server_url: server_url,

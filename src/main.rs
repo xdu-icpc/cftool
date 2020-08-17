@@ -99,10 +99,12 @@ enum Action {
     Submit(String),
 }
 
+const VERSION: &str = git_version::git_version!();
+
 fn main() {
     use clap::{App, Arg};
     let matches = App::new("XDU-ICPC cftool")
-        .version("0.5.0")
+        .version(VERSION)
         .author("Xi Ruoyao <xry111@mengyan1223.wang>")
         .about("A command line tool for submitting code to Codeforces")
         .arg(
@@ -218,7 +220,7 @@ fn main() {
         .init()
         .unwrap();
 
-    info!("{}", "this is XDU-ICPC cftool, version 0.5.0");
+    info!("this is XDU-ICPC cftool, {}", VERSION);
 
     let mut action = Action::None;
 
