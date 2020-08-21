@@ -246,12 +246,39 @@ fn main() {
         }
     }
 
+    let source = matches.value_of("source").unwrap_or("");
+    match action {
+        Action::Dry | Action::Query => {
+            error!(
+                "specifying source code file does not make sense \
+                without submitting it"
+            );
+            exit(1);
+        }
+        Action::Submit(_) => (),
+        Action::None => {
+            let path = std::path::Path::new(source);
+            if let Some(s) = path.file_stem().and_then(|x| x.to_str()) {
+                if s.len() == 1 {
+                    let s = s.to_owned();
+                    action = match s.chars().next().unwrap() {
+                        'A'..='Z' => Action::Submit(s),
+                        'a'..='z' => Action::Submit(s.to_uppercase()),
+                        _ => Action::None,
+                    }
+                }
+            }
+            if let Action::Submit(problem) = &action {
+                info!("guessed problem ID to be {}", problem);
+            }
+        }
+    }
+
     if let Action::None = action {
         error!("must use one of --dry-run, --query, and --problem");
         exit(1);
     }
 
-    let source = matches.value_of("source").unwrap_or("");
     let no_color = matches.occurrences_of("no-color") > 0;
 
     let mut builder = Codeforces::builder();
