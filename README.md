@@ -37,5 +37,5 @@ or `https_proxy` for https connections.  For example:
 
 ## Bugs
 
-`cftool` is not tested in real contests yet.  Not sure if it will malfunction
-or cause you to be banned.
+`cftool` is not tested in rated contests yet.  Not sure if it will cause
+you to be unrated or banned.
