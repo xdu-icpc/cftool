@@ -4,19 +4,6 @@ use codeforces::Verdict;
 use log::{debug, error, info, warn};
 use std::process::exit;
 
-#[derive(Debug)]
-struct CSRFError {
-    reason: &'static str,
-}
-
-impl std::error::Error for CSRFError {}
-
-impl std::fmt::Display for CSRFError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "can not get CSRF token: {}", self.reason)
-    }
-}
-
 fn set_from_file(
     b: codeforces::CodeforcesBuilder,
     p: &std::path::Path,
