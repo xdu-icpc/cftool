@@ -279,6 +279,13 @@ fn main() {
         exit(1);
     }
 
+    if let Action::Submit(_) = &action {
+        if matches.value_of("source").is_none() {
+            error!("attempt to submit, but no source code specified");
+            exit(1);
+        }
+    }
+
     let no_color = matches.occurrences_of("no-color") > 0;
 
     let mut builder = Codeforces::builder();
