@@ -1,7 +1,9 @@
 # cftool
 
-`cftool` is a command line tool for submitting to Codeforces, and query the
-verdict of the submission.
+`cftool` is a command line tool for submitting to [Codeforces][1], and query
+the verdict of the submission.
+
+[1]: https://codeforces.com
 
 ## Usage
 
