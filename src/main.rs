@@ -86,9 +86,9 @@ enum Action {
     Submit(String),
 }
 
-const VERSION: &str = git_version::git_version!();
-
 fn main() {
+    const VERSION: &str =
+        git_version::git_version!(args = ["--tags", "--always", "--dirty=-modified"]);
     use clap::{App, Arg};
     let matches = App::new("XDU-ICPC cftool")
         .version(VERSION)
