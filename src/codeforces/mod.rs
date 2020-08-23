@@ -421,14 +421,15 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn judgement_protocol(&mut self, id: &str, csrf: &str) -> Result<String> {
+    pub fn judgement_protocol(&mut self, id: &str) -> Result<String> {
+        let csrf = self.get_csrf_token()?;
         let u = self
             .contest_url
             .join("../../data/judgeProtocol")
             .chain_err(|| "cannot make judgement protocol URL")?;
         let mut params = std::collections::HashMap::new();
         params.insert("submissionId", id);
-        params.insert("csrf_token", csrf);
+        params.insert("csrf_token", &csrf);
 
         let resp = self.http_request(Method::POST, u.as_str(), |x| Ok(x.form(&params)), true)?;
         if let Response::Content(data) = resp {
@@ -460,14 +461,7 @@ impl Codeforces {
             .join("enter")
             .chain_err(|| "can not get login url: {}")?;
 
-        let mut csrf = self.get_csrf_token();
-        let server_url = self.server_url.clone();
-        if csrf.is_none() {
-            self.http_get(&server_url)?;
-            csrf = self.get_csrf_token();
-        }
-
-        let csrf = csrf.chain_err(|| "failed to get CSRF token")?;
+        let csrf = self.get_csrf_token()?;
 
         // Prepare the form data.
         use std::collections::HashMap;
@@ -490,8 +484,13 @@ impl Codeforces {
         Ok(())
     }
 
-    pub fn get_csrf_token(&mut self) -> Option<String> {
-        self.csrf.take()
+    fn get_csrf_token(&mut self) -> Result<String> {
+        let csrf = self.csrf.take();
+        if let Some(value) = csrf {
+            return Ok(value);
+        }
+        self.http_get(self.server_url.clone())?;
+        self.csrf.take().chain_err(|| "can not get CSRF token")
     }
 
     pub fn get_verdict(&mut self) -> Result<Verdict> {
@@ -531,12 +530,7 @@ impl Codeforces {
             .join("submit")
             .chain_err(|| "cannot build submit URL")?;
 
-        let mut csrf = self.csrf.take();
-        if csrf.is_none() {
-            self.http_get(&url)?;
-            csrf = self.csrf.take();
-        }
-        let csrf = csrf.chain_err(|| "cannot get CSRF token")?;
+        let csrf = self.get_csrf_token()?;
 
         let resp = self.http_request(
             Method::POST,

@@ -38,8 +38,8 @@ fn print_verdict(v: &Verdict, color: bool) {
     });
 }
 
-fn get_ce_info(cf: &mut Codeforces, id: &str, csrf: &str) -> String {
-    cf.judgement_protocol(id, csrf).unwrap_or_else(|e| {
+fn get_ce_info(cf: &mut Codeforces, id: &str) -> String {
+    cf.judgement_protocol(id).unwrap_or_else(|e| {
         error!("can not get compilation error info: {}", e);
         String::new()
     })
@@ -59,13 +59,7 @@ fn poll_or_query_verdict(cf: &mut Codeforces, poll: bool, no_color: bool) {
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
-            let csrf = cf.get_csrf_token();
-            if csrf.is_none() {
-                error!("can not get csrf token, skip compilation error info");
-                return;
-            }
-
-            let s = get_ce_info(cf, v.get_id(), &csrf.unwrap());
+            let s = get_ce_info(cf, v.get_id());
             println!("===================================");
             print!("{}", s);
         }
