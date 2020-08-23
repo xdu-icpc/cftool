@@ -17,7 +17,8 @@ fn set_from_file(
     }
 }
 
-fn print_verdict(v: &Verdict, color: bool) {
+fn print_verdict(v: &Verdict, color: bool, id: &str) {
+    use std::io::Write;
     use termcolor::ColorChoice::Auto;
     use termcolor::{Buffer, BufferWriter};
     let w = BufferWriter::stdout(Auto);
@@ -26,6 +27,11 @@ fn print_verdict(v: &Verdict, color: bool) {
     } else {
         Buffer::no_color()
     };
+
+    write!(&mut buf, "{} ", id).unwrap_or_else(|e| {
+        error!("can not buffer submission ID: {}", e);
+        exit(1);
+    });
 
     v.print(&mut buf).unwrap_or_else(|e| {
         error!("can not buffer verdict: {}", e);
@@ -48,18 +54,25 @@ fn get_ce_info(cf: &mut Codeforces, id: &str) -> String {
 fn poll_or_query_verdict(cf: &mut Codeforces, poll: bool, no_color: bool) {
     use std::time::{Duration, SystemTime};
     let mut wait = true;
+    let id = cf.get_last_submission().unwrap_or_else(|e| {
+        error!("cannot get ID of last submission: {}", e);
+        exit(1);
+    });
+
+    info!("submission id = {}:", &id);
+
     while wait {
         let next_try = SystemTime::now() + Duration::new(5, 0);
-        let v = cf.get_verdict().unwrap_or_else(|e| {
+        let v = cf.get_verdict(&id).unwrap_or_else(|e| {
             error!("cannot get verdict: {}", e);
             exit(1);
         });
 
-        print_verdict(&v, !no_color);
+        print_verdict(&v, !no_color, &id);
         wait = v.is_waiting() && poll;
 
         if v.is_compilation_error() {
-            let s = get_ce_info(cf, v.get_id());
+            let s = get_ce_info(cf, &id);
             println!("===================================");
             print!("{}", s);
         }

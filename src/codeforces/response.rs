@@ -7,6 +7,7 @@ mod error {
 
 use error::*;
 
+#[derive(Debug)]
 pub enum Response {
     Content(String),
     Redirection(Url),

@@ -423,6 +423,9 @@ impl Codeforces {
 
     pub fn judgement_protocol(&mut self, id: &str) -> Result<String> {
         let csrf = self.get_csrf_token()?;
+        // XHR can reuse csrf token
+        self.csrf = Some(csrf.clone());
+
         let u = self
             .contest_url
             .join("../../data/judgeProtocol")
@@ -435,7 +438,7 @@ impl Codeforces {
         if let Response::Content(data) = resp {
             Ok(serde_json::from_str(&data).chain_err(|| "cannot parse JSON")?)
         } else {
-            bail!("response have no content");
+            bail!("response {:?} has no content", resp);
         }
     }
 
@@ -493,7 +496,7 @@ impl Codeforces {
         self.csrf.take().chain_err(|| "can not get CSRF token")
     }
 
-    pub fn get_verdict(&mut self) -> Result<Verdict> {
+    pub fn get_last_submission(&mut self) -> Result<String> {
         let url = self
             .contest_url
             .join("my")
@@ -502,9 +505,32 @@ impl Codeforces {
         let txt = if let Response::Content(t) = resp {
             t
         } else {
-            bail!("response does not have content");
+            bail!("response {:?} has no content", resp);
         };
-        Verdict::parse(&txt).chain_err(|| "cannot parse verdict")
+        verdict::parse_submission_id(&txt).chain_err(|| "cannot parse verdict")
+    }
+
+    pub fn get_verdict(&mut self, id: &str) -> Result<Verdict> {
+        let csrf = self.get_csrf_token()?;
+        // XHR can reuse csrf token
+        self.csrf = Some(csrf.clone());
+
+        let u = self
+            .contest_url
+            .join("../../data/submissionVerdict")
+            .chain_err(|| "cannot make verdict data URL")?;
+        let mut params = std::collections::HashMap::new();
+        params.insert("submissionId", id);
+        params.insert("csrf_token", &csrf);
+        let resp = self.http_request(Method::POST, u.as_str(), |x| Ok(x.form(&params)), true)?;
+
+        let txt = if let Response::Content(c) = &resp {
+            c
+        } else {
+            bail!("response {} have no content");
+        };
+
+        Verdict::from_json(txt).chain_err(|| "can not parse verdict")
     }
 
     pub fn get_identy(&self) -> &str {

@@ -1,9 +1,10 @@
+use serde_aux::field_attributes::deserialize_bool_from_anything;
+
 mod error {
     error_chain::error_chain! {}
 }
 
 use error::*;
-use error_chain::bail;
 
 pub enum VerdictCode {
     Accepted,
@@ -14,80 +15,63 @@ pub enum VerdictCode {
 
 pub struct Verdict {
     code: VerdictCode,
-    id: String,
     msg: String,
 }
 
+pub fn parse_submission_id(txt: &str) -> Result<String> {
+    use regex::Regex;
+    let re = Regex::new(
+        r"<td party[^>]* class=[^>]*status-verdict-cell.*submissionId=.(?P<id>[0-9]*).*\n",
+    )
+    .unwrap();
+    let caps = re
+        .captures(txt)
+        .chain_err(|| "no match for submission ID")?;
+    Ok(caps["id"].to_owned())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerdictJson {
+    #[serde(deserialize_with = "deserialize_bool_from_anything")]
+    compilation_error: bool,
+    verdict: String,
+    #[serde(deserialize_with = "deserialize_bool_from_anything")]
+    waiting: bool,
+}
+
 impl Verdict {
-    fn new<U: ToString, V: ToString>(code: VerdictCode, msg: U, id: V) -> Self {
+    fn new<T: ToString>(code: VerdictCode, msg: T) -> Self {
         Verdict {
             code,
             msg: msg.to_string(),
-            id: id.to_string(),
         }
     }
 
-    pub fn parse(txt: &str) -> Result<Self> {
+    pub fn from_json(json: &str) -> Result<Self> {
         use regex::Regex;
         use VerdictCode::*;
 
-        // The line containing <td> mark is same in coach mode and normal
-        // mode, but the next line containing the actual verdict is not.
-        // So we have to match the previous line :(.
-        let re = Regex::new(r"<td party[^>]* class=[^>]*status-verdict-cell.*submissionId=.(?P<id>[0-9]*).*\n(?P<line>.*)\n")
-            .unwrap();
-        let caps = match re.captures(txt) {
-            Some(c) => c,
-            None => bail!("no match for submission ID"),
-        };
-        let id = &caps["id"];
-        let line = &caps["line"];
-
-        if line.contains("Compilation error") {
-            // Special case it because the CSS style is different.
-            return Ok(Verdict::new(CompilationError, "Compilation error", id));
-        }
-
-        if line.contains("In queue") {
-            // Likewise.
-            return Ok(Verdict::new(Waiting, "In queue", id));
-        }
-
-        if line.contains("Pending judgement") {
-            // Likewise.
-            return Ok(Verdict::new(Waiting, "Pending judgement", id));
-        }
-
-        if line.contains("Partial") {
-            // Likewise.
-            return Ok(Verdict::new(Rejected, "Partial", id));
-        }
-
-        if line.contains("Skipped") {
-            // Likewise.
-            return Ok(Verdict::new(Rejected, "Skipped", id));
-        }
-
-        let re =
-            regex::Regex::new(r"<span class='verdict-(?P<verdict>.*)'>(?P<message>.*)</").unwrap();
-        let caps = match re.captures(&line) {
-            Some(c) => c,
-            None => bail!("no match for verdict"),
-        };
+        let verdict_json: VerdictJson =
+            serde_json::from_str(json).chain_err(|| "can not parse JSON")?;
 
         // Remove HTML labels like <span> from message
-        let message = &caps["message"];
         let re = Regex::new(r"<.[^>]*>").unwrap();
-        let clean_msg = re.replace_all(message, "");
+        let msg = re.replace_all(&verdict_json.verdict, "");
 
-        let code = match &caps["verdict"] {
-            "accepted" => Accepted,
-            "rejected" | "failed" => Rejected,
-            "waiting" => Waiting,
-            _ => bail!("unknown verdict {}", &caps["verdict"]),
-        };
+        if verdict_json.compilation_error {
+            return Ok(Verdict::new(CompilationError, msg));
+        }
 
-        Ok(Verdict::new(code, clean_msg, id))
+        if verdict_json.waiting {
+            return Ok(Verdict::new(Waiting, msg));
+        }
+
+        if verdict_json.verdict.contains("verdict-accepted") {
+            return Ok(Verdict::new(Accepted, msg));
+        }
+
+        Ok(Verdict::new(Rejected, msg))
     }
 
     pub fn print<W: termcolor::WriteColor>(&self, w: &mut W) -> std::io::Result<()> {
@@ -104,9 +88,7 @@ impl Verdict {
             w.set_color(ColorSpec::new().set_fg(color))?;
         }
 
-        let msg = format!("{} {}", self.id, self.msg);
-
-        w.write_all(msg.as_bytes())?;
+        w.write_all(self.msg.as_bytes())?;
         if use_color {
             w.reset()?;
         }
@@ -126,9 +108,5 @@ impl Verdict {
             VerdictCode::CompilationError => true,
             _ => false,
         }
-    }
-
-    pub fn get_id(&self) -> &str {
-        &self.id
     }
 }
