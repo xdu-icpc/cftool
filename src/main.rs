@@ -208,8 +208,9 @@ fn main() {
         .get_matches();
 
     let v = matches.occurrences_of("v") as usize;
+    let modules = &[module_path!(), "reqwest"];
     stderrlog::new()
-        .module(module_path!())
+        .modules(modules.iter().cloned())
         .verbosity(v + 1)
         .init()
         .unwrap();

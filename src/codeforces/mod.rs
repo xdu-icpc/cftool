@@ -1,6 +1,5 @@
 use cookie_store::CookieStore;
 use error_chain::bail;
-use log::info;
 use reqwest::blocking::RequestBuilder;
 use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
 use reqwest::redirect;
@@ -356,7 +355,6 @@ impl Codeforces {
             if let Err(e) = &resp {
                 if e.is_timeout() && retry_limit > 0 {
                     retry_limit -= 1;
-                    info!("timeout, retrying");
                     continue;
                 }
             }
