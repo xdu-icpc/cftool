@@ -248,11 +248,6 @@ fn main() {
     }
 
     let need_poll = matches.occurrences_of("poll") > 0;
-    if need_poll {
-        if let Action::None = action {
-            action = Action::Query;
-        }
-    }
 
     let source = matches.value_of("source").unwrap_or("");
     if matches.value_of("source").is_some() {
@@ -281,6 +276,12 @@ fn main() {
                     info!("guessed problem ID to be {}", problem);
                 }
             }
+        }
+    }
+
+    if need_poll {
+        if let Action::None = action {
+            action = Action::Query;
         }
     }
 
