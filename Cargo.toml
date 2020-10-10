@@ -1,6 +1,6 @@
 [package]
 name = "cftool"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["Xi Ruoyao <xry111@mengyan1223.wang>"]
 edition = "2018"
 
