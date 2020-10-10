@@ -430,7 +430,7 @@ fn main() {
         Action::Submit(p) => p,
         Action::Dry => exit(0),
         Action::Query => {
-            poll_or_query_verdict(&mut cfg, false, no_color);
+            poll_or_query_verdict(&mut cfg, need_poll, no_color);
             exit(0);
         }
         Action::None => unreachable!(),
