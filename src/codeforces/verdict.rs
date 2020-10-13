@@ -97,16 +97,10 @@ impl Verdict {
     }
 
     pub fn is_waiting(&self) -> bool {
-        match self.code {
-            VerdictCode::Waiting => true,
-            _ => false,
-        }
+        matches!(self.code, VerdictCode::Waiting)
     }
 
     pub fn is_compilation_error(&self) -> bool {
-        match self.code {
-            VerdictCode::CompilationError => true,
-            _ => false,
-        }
+        matches!(self.code, VerdictCode::CompilationError)
     }
 }
