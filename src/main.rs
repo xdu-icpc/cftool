@@ -373,14 +373,14 @@ fn main() {
         builder = builder.contest_path(contest);
     }
 
-    let mut cfg = builder.build().unwrap_or_else(|e| {
+    let mut cf = builder.build().unwrap_or_else(|e| {
         error!("can not build Codeforces client: {}", e);
         exit(1);
     });
 
     let dialect = matches.value_of("dialect");
 
-    let logon = cfg.probe_login_status().unwrap_or_else(|e| {
+    let logon = cf.probe_login_status().unwrap_or_else(|e| {
         error!("can not probe if we are already logon: {}", e);
         exit(1);
     });
@@ -390,19 +390,19 @@ fn main() {
         info!("authentication required");
 
         // Read password
-        let prompt = format!("[cftool] password for {}: ", cfg.get_identy());
+        let prompt = format!("[cftool] password for {}: ", cf.get_identy());
         let passwd = rpassword::prompt_password_stderr(&prompt).unwrap_or_else(|err| {
             error!("failed reading password: {}", err);
             exit(1);
         });
 
-        cfg.login(&passwd).unwrap_or_else(|err| {
+        cf.login(&passwd).unwrap_or_else(|err| {
             error!("failed to login: {}", err);
             exit(1);
         });
 
         // Retry to GET the submit page.
-        let logon = cfg.probe_login_status().unwrap_or_else(|e| {
+        let logon = cf.probe_login_status().unwrap_or_else(|e| {
             error!("can not probe if we are already logon: {}", e);
             exit(1);
         });
@@ -415,7 +415,7 @@ fn main() {
         }
     }
 
-    match cfg.maybe_save_cookie() {
+    match cf.maybe_save_cookie() {
         Err(e) => error!("cannot save cookie: {}", e),
         Ok(saved) => {
             if let Some(p) = saved {
@@ -430,18 +430,18 @@ fn main() {
         Action::Submit(p) => p,
         Action::Dry => exit(0),
         Action::Query => {
-            poll_or_query_verdict(&mut cfg, need_poll, no_color);
+            poll_or_query_verdict(&mut cf, need_poll, no_color);
             exit(0);
         }
         Action::None => unreachable!(),
     };
 
-    cfg.submit(&problem, source, dialect).unwrap_or_else(|err| {
+    cf.submit(&problem, source, dialect).unwrap_or_else(|err| {
         error!("submit failed: {}", err);
         exit(1);
     });
 
     if need_poll {
-        poll_or_query_verdict(&mut cfg, true, no_color);
+        poll_or_query_verdict(&mut cf, true, no_color);
     }
 }
