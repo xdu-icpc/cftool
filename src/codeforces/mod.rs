@@ -442,9 +442,9 @@ impl Codeforces {
 
     pub fn probe_login_status(&mut self) -> Result<bool> {
         let submit_url = self
-            .contest_url
-            .join("submit")
-            .chain_err(|| "can not parse URL for submitting")?;
+            .server_url
+            .join("/usertalk")
+            .chain_err(|| "can not parse URL for probing login status")?;
         let resp = self
             .http_get(&submit_url)
             .chain_err(|| format!("GET {} failed", submit_url))?;
