@@ -352,7 +352,7 @@ fn main() {
     }
 
     let custom_config = matches.value_of("config").unwrap_or("");
-    if custom_config != "" {
+    if !custom_config.is_empty() {
         let path = std::path::Path::new(custom_config);
         builder = set_from_file(builder, &path);
     }
