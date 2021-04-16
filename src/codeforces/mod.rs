@@ -28,6 +28,15 @@ enum CookieLocation {
     File(PathBuf),
 }
 
+fn check_url_scheme(s: &str) -> Result<Url> {
+    let u = Url::parse(s).chain_err(|| "can not parse URL")?;
+    match u.scheme() {
+        "https" => return Ok(u),
+        "http" => bail!("plain HTTP is insecure, use HTTPS instead"),
+        _ => bail! {"unsupported protocol {}", u.scheme()},
+    }
+}
+
 pub struct CodeforcesBuilder {
     server_url: Option<String>,
     identy: Option<String>,
@@ -61,19 +70,11 @@ impl CodeforcesBuilder {
             }
         };
 
-        let server_url = Url::parse(
+        let server_url = check_url_scheme(
             b.server_url
                 .as_ref()
                 .map_or("https://codeforces.com", |x| x.as_ref()),
-        )
-        .chain_err(|| "can not parse server URL")?;
-
-        match server_url.scheme() {
-            "http" | "https" => (),
-            _ => {
-                bail!("scheme {} is not implemented", server_url.scheme());
-            }
-        };
+        )?;
 
         let contest_path = if let Some(value) = b.contest_path {
             value
@@ -310,23 +311,6 @@ impl Codeforces {
         Ok(self.cookie_file.as_ref())
     }
 
-    fn is_ssl_redirection(&self, resp: &Response) -> bool {
-        let url = if let Response::Redirection(url) = resp {
-            url
-        } else {
-            return false;
-        };
-
-        url.scheme() == "https"
-            && self.server_url.scheme() != "https"
-            && self.server_url.host() == url.host()
-    }
-
-    fn ensure_ssl(&mut self) {
-        self.server_url.set_scheme("https").unwrap();
-        self.contest_url.set_scheme("https").unwrap();
-    }
-
     fn http_get<P: AsRef<str>>(&mut self, path: P) -> Result<Response> {
         self.http_request(Method::GET, path, Ok, true)
     }
@@ -367,10 +351,6 @@ impl Codeforces {
             let resp = Response::wrap(resp).chain_err(|| "glitched HTTP response");
 
             if let Ok(r) = &resp {
-                if self.is_ssl_redirection(r) {
-                    self.ensure_ssl();
-                    continue;
-                }
                 self.csrf = get_csrf_token(r);
             }
 
