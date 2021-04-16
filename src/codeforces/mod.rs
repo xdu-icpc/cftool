@@ -31,7 +31,7 @@ enum CookieLocation {
 fn check_url_scheme(s: &str) -> Result<Url> {
     let u = Url::parse(s).chain_err(|| "can not parse URL")?;
     match u.scheme() {
-        "https" => return Ok(u),
+        "https" => Ok(u),
         "http" => bail!("plain HTTP is insecure, use HTTPS instead"),
         _ => bail! {"unsupported protocol {}", u.scheme()},
     }
