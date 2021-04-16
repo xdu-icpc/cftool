@@ -1,6 +1,5 @@
 {
 	"identy": "loujunjie",
-	"server_url": "https://codeforces.com",
 	"contest_path": "gym/251770",
 	"prefer_cxx": "c++14",
 	"prefer_py": "pypy3"

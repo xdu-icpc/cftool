@@ -379,6 +379,10 @@ fn main() {
         builder = builder.contest_path(contest);
     }
 
+    if builder.have_server_url_override() {
+        warn!("overriding server_url is not recommended for normal use!");
+    }
+
     let mut cf = builder.build().unwrap_or_else(|e| {
         error!("can not build Codeforces client: {}", e);
         exit(1);

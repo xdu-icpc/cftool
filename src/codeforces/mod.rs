@@ -123,6 +123,10 @@ impl CodeforcesBuilder {
         }
     }
 
+    pub fn have_server_url_override(&self) -> bool {
+        self.server_url.is_some()
+    }
+
     pub fn server_url(mut self, u: &str) -> Self {
         self.server_url = Some(u.to_owned());
         self

@@ -11,8 +11,8 @@ At first you need to create `cftool.json` in your user config directory or
 your working directory.  An example is in `example/cftool.json`.
 
 Note that `contest_path` can be a contest, a gym contest, or a group
-contest.  And `server` can be `http://codeforces.com` or
-`https://codeforces.com`.
+contest.  And `server_url` is defaulted to `https://codeforces.com`, normal
+users should not override it.
 
 Then you can:
 
@@ -44,9 +44,7 @@ overused it in some way.
 `cftool` does not support Codeforces basic contest servers (for example,
 `https://m2.codeforces.com`) yet.
 
-Your password is transmitted to Codeforces as plain text.  This is not a bug
-of `cftool`, nor a bug of Codeforces.  Various references indicate that it's
-not recommended to implement any custom password hashing mechanism on the
-client side of modern web applications.  If you have worries about this, use
-HTTPS instead of plain HTTP.  The future releases of `cftool` may force to
-use HTTPS.
+`cftool` does not support plain HTTP deliberately.  You should use HTTPS
+instead.  And, if you override the server URL by any means (for example,
+using a third-party reverse proxy server), you should take the security
+risks yourself.
