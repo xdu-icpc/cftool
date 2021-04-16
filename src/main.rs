@@ -274,6 +274,12 @@ fn main() {
                 }
                 if let Action::Submit(problem) = &action {
                     info!("guessed problem ID to be {}", problem);
+                } else {
+                    error!(
+                        "can't guess problem ID from the filename, \
+                        please specify it explicitly"
+                    );
+                    exit(1);
                 }
             }
         }
