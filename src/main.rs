@@ -352,7 +352,7 @@ fn main() {
     );
     let config_file = std::path::Path::new("cftool.json");
     if config_file.exists() {
-        builder = set_from_file(builder, &config_file);
+        builder = set_from_file(builder, config_file);
     } else {
         debug!("cftool.json does not exist")
     }
@@ -360,7 +360,7 @@ fn main() {
     let custom_config = matches.value_of("config").unwrap_or("");
     if !custom_config.is_empty() {
         let path = std::path::Path::new(custom_config);
-        builder = set_from_file(builder, &path);
+        builder = set_from_file(builder, path);
     }
 
     if let Some(path) = matches.value_of("cookie") {

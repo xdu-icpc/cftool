@@ -245,7 +245,7 @@ fn get_csrf_token_str(txt: &str) -> Option<String> {
 
 fn get_csrf_token(resp: &Response) -> Option<String> {
     if let Response::Content(txt) = resp {
-        get_csrf_token_str(&txt)
+        get_csrf_token_str(txt)
     } else {
         None
     }
