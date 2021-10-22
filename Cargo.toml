@@ -2,7 +2,7 @@
 name = "cftool"
 version = "0.7.0-dev"
 authors = ["Xi Ruoyao <xry111@mengyan1223.wang>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
