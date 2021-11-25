@@ -8,6 +8,7 @@ pub struct Config {
     pub user_agent: Option<String>,
     pub prefer_cxx: Option<String>,
     pub prefer_py: Option<String>,
+    pub rust_edition: Option<String>,
     pub cookie_file: Option<std::path::PathBuf>,
     pub retry_limit: Option<i64>,
     pub no_cookie: Option<bool>,

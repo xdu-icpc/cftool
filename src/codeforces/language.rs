@@ -27,6 +27,14 @@ pub fn py_dialect_recognize(d: &str) -> Result<&'static str> {
     })
 }
 
+pub fn rs_edition_recognize(e: &str) -> Result<&'static str> {
+    Ok(match e {
+        "2018" => "rust2018",
+        "2021" => "rust2021",
+        _ => bail!("unknown or unsupported Rust edition: {}", e),
+    })
+}
+
 pub fn get_lang_dialect(dialect: &str) -> Result<&'static str> {
     Ok(match dialect {
         "c" => "43",
@@ -38,7 +46,8 @@ pub fn get_lang_dialect(dialect: &str) -> Result<&'static str> {
         "py2" => "7",
         "pypy3" => "41",
         "pypy2" => "40",
-        "rust" => "49",
+        "rust2018" => "49",
+        "rust2021" => "75",
         "java" => "36",
         _ => bail!("don't know dialect {}", dialect),
     })
@@ -47,13 +56,15 @@ pub fn get_lang_dialect(dialect: &str) -> Result<&'static str> {
 pub struct DialectParser {
     cxx_dialect: &'static str,
     py_dialect: &'static str,
+    rs_edition: &'static str,
 }
 
 impl DialectParser {
-    pub fn new<T: AsRef<str>, U: AsRef<str>>(cxx_dialect: T, py_dialect: U) -> Result<Self> {
+    pub fn new<T: AsRef<str>, U: AsRef<str>, V: AsRef<str>>(cxx_dialect: T, py_dialect: U, rs_edition: V) -> Result<Self> {
         Ok(Self {
             cxx_dialect: cxx_dialect_recognize(cxx_dialect.as_ref())?,
             py_dialect: py_dialect_recognize(py_dialect.as_ref())?,
+            rs_edition: rs_edition_recognize(rs_edition.as_ref())?,
         })
     }
 
@@ -62,7 +73,7 @@ impl DialectParser {
             "c" => "c",
             "cc" | "cp" | "cxx" | "cpp" | "CPP" | "c++" | "C" => self.cxx_dialect,
             "py" => self.py_dialect,
-            "rs" => "rust",
+            "rs" => self.rs_edition,
             "java" => "java",
             _ => bail!("don't know extension {}", ext),
         };

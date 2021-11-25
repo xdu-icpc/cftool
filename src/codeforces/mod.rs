@@ -43,6 +43,7 @@ pub struct CodeforcesBuilder {
     user_agent: Option<String>,
     cxx_dialect: Option<String>,
     py_dialect: Option<String>,
+    rust_edition: Option<String>,
     cookie_location: CookieLocation,
     retry_limit: i64,
     no_cookie: bool,
@@ -88,9 +89,10 @@ impl CodeforcesBuilder {
 
         let cxx = b.cxx_dialect.as_ref().map_or("c++17-64", |x| x.as_ref());
         let py = b.py_dialect.as_ref().map_or("py3", |x| x.as_ref());
+        let rs = b.rust_edition.as_ref().map_or("2018", |x| x.as_ref());
 
         let dialect =
-            language::DialectParser::new(cxx, py).chain_err(|| "can not parse dialect setting")?;
+            language::DialectParser::new(cxx, py, rs).chain_err(|| "can not parse dialect setting")?;
 
         const VERSION: &str =
             git_version::git_version!(args = ["--tags", "--always", "--dirty=-modified"]);
@@ -172,6 +174,11 @@ impl CodeforcesBuilder {
         self
     }
 
+    pub fn rust_edition<S: ToString>(mut self, s: S) -> Self {
+        self.rust_edition = Some(s.to_string());
+        self
+    }
+
     pub fn contest_path<S: ToString>(mut self, s: S) -> Self {
         /* '/' for url::Url::join interface. */
         self.contest_path = Some(s.to_string() + "/");
@@ -210,6 +217,10 @@ impl CodeforcesBuilder {
 
         if let Some(s) = cfg.prefer_py {
             self = self.py_dialect(s)
+        }
+
+        if let Some(s) = cfg.rust_edition {
+            self = self.rust_edition(s)
         }
 
         if let Some(s) = cfg.cookie_file {
@@ -272,6 +283,7 @@ impl Codeforces {
             user_agent: None,
             cxx_dialect: None,
             py_dialect: None,
+            rust_edition: None,
             retry_limit: 3,
             no_cookie: false,
             cookie_location: CookieLocation::None,
