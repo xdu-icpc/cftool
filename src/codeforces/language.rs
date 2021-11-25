@@ -8,11 +8,14 @@ use error::*;
 
 pub fn cxx_dialect_recognize(d: &str) -> Result<&'static str> {
     Ok(match d {
-        "c++11" | "cxx11" | "cpp11" | "c++0x" | "cxx0x" | "cpp0x" => "c++11",
         "c++14" | "cxx14" | "cpp14" | "c++1y" | "cxx1y" | "cpp1y" => "c++14",
         "c++17" | "cxx17" | "cpp17" | "c++1z" | "cxx1z" | "cpp1z" => "c++17",
-        "c++-64" | "cxx-64" | "cpp-64" | "c++17-64" | "cxx17-64" | "cpp17-64" | "c++1z-64"
-        | "cxx1z-64" | "cpp1z-64" => "c++17-64",
+        "c++17-64" | "cxx17-64" | "cpp17-64" | "c++1z-64" | "cxx1z-64" | "cpp1z-64" => "c++17-64",
+        "c++20" | "cxx20" | "cpp20" | "c++2a" | "cxx2a" | "cpp2a" => "c++20",
+        "c++20-64" | "cxx20-64" | "cpp20-64" | "c++2a-64" | "cxx2a-64" | "cpp2a-64" => "c++20",
+        "c++11" | "cxx11" | "cpp11" | "c++1x" | "cxx1x" | "cpp1x" => {
+            bail!("C++11 support has been removed by Codeforces")
+        }
         _ => bail!("unknown or unsupported C++ dialect: {}", d),
     })
 }
@@ -38,10 +41,10 @@ pub fn rs_edition_recognize(e: &str) -> Result<&'static str> {
 pub fn get_lang_dialect(dialect: &str) -> Result<&'static str> {
     Ok(match dialect {
         "c" => "43",
+        "c++20" => "73",
         "c++17-64" => "61",
         "c++17" => "54",
         "c++14" => "50",
-        "c++11" => "42",
         "py3" => "31",
         "py2" => "7",
         "pypy3" => "41",
@@ -60,7 +63,11 @@ pub struct DialectParser {
 }
 
 impl DialectParser {
-    pub fn new<T: AsRef<str>, U: AsRef<str>, V: AsRef<str>>(cxx_dialect: T, py_dialect: U, rs_edition: V) -> Result<Self> {
+    pub fn new<T: AsRef<str>, U: AsRef<str>, V: AsRef<str>>(
+        cxx_dialect: T,
+        py_dialect: U,
+        rs_edition: V,
+    ) -> Result<Self> {
         Ok(Self {
             cxx_dialect: cxx_dialect_recognize(cxx_dialect.as_ref())?,
             py_dialect: py_dialect_recognize(py_dialect.as_ref())?,

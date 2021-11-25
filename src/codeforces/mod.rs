@@ -91,8 +91,8 @@ impl CodeforcesBuilder {
         let py = b.py_dialect.as_ref().map_or("py3", |x| x.as_ref());
         let rs = b.rust_edition.as_ref().map_or("2018", |x| x.as_ref());
 
-        let dialect =
-            language::DialectParser::new(cxx, py, rs).chain_err(|| "can not parse dialect setting")?;
+        let dialect = language::DialectParser::new(cxx, py, rs)
+            .chain_err(|| "can not parse dialect setting")?;
 
         const VERSION: &str =
             git_version::git_version!(args = ["--tags", "--always", "--dirty=-modified"]);
