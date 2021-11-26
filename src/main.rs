@@ -380,7 +380,10 @@ fn main() {
     }
 
     if builder.have_server_url_override() {
-        warn!("overriding server_url is not recommended for normal use!");
+        warn!(
+            "overriding server_url requires that the server supports \
+            HTTP/2.0, and is not recommended for normal use!"
+        );
     }
 
     let mut cf = builder.build().unwrap_or_else(|e| {

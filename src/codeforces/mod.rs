@@ -113,6 +113,7 @@ impl CodeforcesBuilder {
             // It will throw set-cookie in the header of redirect response.
             client: reqwest::blocking::Client::builder()
                 .redirect(redirect::Policy::none())
+                .http2_prior_knowledge()
                 .build()
                 .chain_err(|| "can not build HTTP client")?,
             csrf: None,
