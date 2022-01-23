@@ -131,6 +131,7 @@ dependencies = [
  "log",
  "regex",
  "reqwest",
+ "reqwest_cookie_store",
  "rpassword",
  "serde",
  "serde-aux",
@@ -937,6 +938,8 @@ dependencies = [
  "async-compression",
  "base64",
  "bytes",
+ "cookie",
+ "cookie_store",
  "encoding_rs",
  "futures-core",
  "futures-util",
@@ -954,6 +957,7 @@ dependencies = [
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
+ "proc-macro-hack",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -966,6 +970,19 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winreg",
+]
+
+[[package]]
+name = "reqwest_cookie_store"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48cbf3a2aeeeaa6d10a76db86068c3560320f6265c3a0e2642e0538e11c2d143"
+dependencies = [
+ "bytes",
+ "cookie",
+ "cookie_store",
+ "reqwest",
+ "url",
 ]
 
 [[package]]

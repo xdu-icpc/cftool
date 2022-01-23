@@ -1,10 +1,11 @@
 use cookie_store::CookieStore;
 use error_chain::bail;
 use reqwest::blocking::RequestBuilder;
-use reqwest::header::{COOKIE, SET_COOKIE, USER_AGENT};
+use reqwest::header::USER_AGENT;
 use reqwest::redirect;
 use reqwest::Method;
-use std::io::{BufRead, Write};
+use reqwest_cookie_store::CookieStoreMutex;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use url::Url;
 
@@ -34,6 +35,24 @@ fn check_url_scheme(s: &str) -> Result<Url> {
         "https" => Ok(u),
         "http" => bail!("plain HTTP is insecure, use HTTPS instead"),
         _ => bail! {"unsupported protocol {}", u.scheme()},
+    }
+}
+
+fn load_cookie_from_file(f: Option<&PathBuf>) -> Result<CookieStore> {
+    let path = if let Some(value) = f {
+        value
+    } else {
+        return Ok(Default::default());
+    };
+
+    if path.exists() {
+        let f = std::fs::File::open(path)
+            .chain_err(|| format!("can not open cache file {} for reading", path.display()))?;
+        use std::io::BufReader;
+        let r = BufReader::new(f);
+        CookieStore::load_json(r).map_err(|e| format!("can not load cookie: {}", e).into())
+    } else {
+        Ok(Default::default())
     }
 }
 
@@ -100,7 +119,11 @@ impl CodeforcesBuilder {
             .user_agent
             .unwrap_or(format!("cftool/{} (cftool)", VERSION));
 
-        let mut cf = Codeforces {
+        let cookie_store = load_cookie_from_file(cookie_file.as_ref())
+            .map(CookieStoreMutex::new)
+            .map(std::sync::Arc::new)?;
+
+        let cf = Codeforces {
             server_url,
             identy,
             contest_url,
@@ -108,22 +131,18 @@ impl CodeforcesBuilder {
             dialect,
             retry_limit: b.retry_limit,
             cookie_file,
-            cookie_store: Default::default(),
+            cookie_store: std::sync::Arc::clone(&cookie_store),
             // We don't use redirection following feature of reqwest.
             // It will throw set-cookie in the header of redirect response.
             client: reqwest::blocking::Client::builder()
                 .redirect(redirect::Policy::none())
                 .http2_prior_knowledge()
+                .cookie_provider(std::sync::Arc::clone(&cookie_store))
                 .build()
                 .chain_err(|| "can not build HTTP client")?,
             csrf: None,
         };
-
-        if let Err(e) = cf.load_cookie_from_file() {
-            Err(e)
-        } else {
-            Ok(cf)
-        }
+        Ok(cf)
     }
 
     pub fn have_server_url_override(&self) -> bool {
@@ -271,7 +290,7 @@ pub struct Codeforces {
     dialect: language::DialectParser,
     retry_limit: i64,
     cookie_file: Option<PathBuf>,
-    cookie_store: CookieStore,
+    cookie_store: std::sync::Arc<CookieStoreMutex>,
     client: reqwest::blocking::Client,
     csrf: Option<String>,
 }
@@ -289,24 +308,6 @@ impl Codeforces {
             no_cookie: false,
             cookie_location: CookieLocation::None,
             contest_path: None,
-        }
-    }
-
-    fn load_cookie_from_file(&mut self) -> Result<()> {
-        let path = if let Some(value) = self.cookie_file.as_ref() {
-            value
-        } else {
-            return Ok(());
-        };
-
-        if path.exists() {
-            let f = std::fs::File::open(path)
-                .chain_err(|| format!("can not open cache file {} for reading", path.display()))?;
-            use std::io::BufReader;
-            let r = BufReader::new(f);
-            self.load_cookie(r)
-        } else {
-            Ok(())
         }
     }
 
@@ -360,12 +361,10 @@ impl Codeforces {
                 }
             }
 
-            let resp = resp.chain_err(|| "can not get response")?;
-
-            self.store_cookie(&resp)
-                .chain_err(|| "can not store cookie")?;
-
-            let resp = Response::wrap(resp).chain_err(|| "glitched HTTP response");
+            let resp = resp
+                .chain_err(|| "can not get response")
+                .map(Response::wrap)?
+                .chain_err(|| "glitched HTTP response");
 
             if let Ok(r) = &resp {
                 self.csrf = get_csrf_token(r);
@@ -376,44 +375,17 @@ impl Codeforces {
     }
 
     fn add_header(&self, b: RequestBuilder) -> RequestBuilder {
-        let cookie = self
-            .cookie_store
-            .iter_unexpired()
-            .map(|c| c.encoded().to_string())
-            .collect::<Vec<_>>()
-            .join("; ");
         b.header(USER_AGENT, &self.user_agent)
-            .header(COOKIE, &cookie)
-    }
-
-    fn store_cookie(&mut self, resp: &reqwest::blocking::Response) -> Result<()> {
-        let u = Url::parse(resp.url().as_str()).chain_err(|| "bad url")?;
-        resp.headers()
-            .get_all(SET_COOKIE)
-            .iter()
-            .try_for_each(|val| -> Result<()> {
-                let s = val.to_str().chain_err(|| "bad cookie string")?;
-                self.cookie_store
-                    .parse(s, &u)
-                    .chain_err(|| "ill-formed cookie string")?;
-                Ok(())
-            })?;
-        Ok(())
     }
 
     fn save_cookie<W: Write>(&self, w: &mut W) -> Result<()> {
-        if let Err(e) = self.cookie_store.save_json(w) {
-            bail!("can not save cookie: {}", e);
-        }
-        Ok(())
-    }
-
-    fn load_cookie<R: BufRead>(&mut self, rd: R) -> Result<()> {
-        match CookieStore::load_json(rd) {
-            Err(e) => bail!("can not load cookie: {}", e),
-            Ok(c) => self.cookie_store = c,
+        let store = match self.cookie_store.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
         };
-        Ok(())
+        store
+            .save_json(w)
+            .map_err(|e| format!("cannot save cookie: {}", e).into())
     }
 
     pub fn judgement_protocol(&mut self, id: &str) -> Result<String> {
