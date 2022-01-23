@@ -1,3 +1,4 @@
+mod app;
 mod codeforces;
 use codeforces::Codeforces;
 use codeforces::Verdict;
@@ -94,142 +95,31 @@ enum Action {
 }
 
 fn main() {
-    const VERSION: &str =
-        git_version::git_version!(args = ["--tags", "--always", "--dirty=-modified"]);
-    use clap::{App, Arg};
-    let matches = App::new("XDU-ICPC cftool")
-        .version(VERSION)
-        .author("Xi Ruoyao <xry111@mengyan1223.wang>")
-        .about("A command line tool for submitting code to Codeforces")
-        .arg(
-            Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .takes_value(true)
-                .value_name("FILE")
-                .help(
-                    "Sets a custom config file, \
-                     overriding other config files",
-                ),
-        )
-        .arg(
-            Arg::with_name("problem")
-                .short("p")
-                .long("problem")
-                .takes_value(true)
-                .value_name("A-Z")
-                .help("The problem ID in contest"),
-        )
-        .arg(
-            Arg::with_name("source")
-                .short("s")
-                .long("source")
-                .takes_value(true)
-                .value_name("FILE")
-                .help("The source code file to be submitted"),
-        )
-        .arg(
-            Arg::with_name("v")
-                .short("v")
-                .multiple(true)
-                .help("Sets the level of verbosity"),
-        )
-        .arg(
-            Arg::with_name("dry-run")
-                .long("dry-run")
-                .short("d")
-                .takes_value(false)
-                .help("Only do authentication"),
-        )
-        .arg(
-            Arg::with_name("query")
-                .long("query")
-                .short("q")
-                .takes_value(false)
-                .help("Query the status of the last submission"),
-        )
-        .arg(
-            Arg::with_name("poll")
-                .long("poll")
-                .short("l")
-                .takes_value(false)
-                .help(
-                    "Polling the last submission until it's judged, \
-                     implies -q if -p is not used",
-                ),
-        )
-        .arg(
-            Arg::with_name("contest")
-                .long("contest")
-                .short("o")
-                .value_name("PATH")
-                .help("Contest path, overriding the config files")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("server")
-                .value_name("scheme://domain")
-                .long("server")
-                .short("u")
-                .help("Server URL, overriding the config files")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("identy")
-                .value_name("IDENTY")
-                .long("identy")
-                .short("i")
-                .help("Identy, handle or email, overriding the config files")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("dialect")
-                .value_name("DIALECT")
-                .long("dialect")
-                .short("a")
-                .help("Language dialect, overriding config and filename")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("cookie")
-                .value_name("FILE")
-                .long("cookie")
-                .short("k")
-                .help("Cookie cache file, overriding the default")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("no-color")
-                .takes_value(false)
-                .long("no-color")
-                .short("w")
-                .help("Do not use color for verdict"),
-        )
-        .get_matches();
-
-    let v = matches.occurrences_of("v") as usize;
+    use app::Parser;
+    let args = app::App::parse();
+    let v = args.verbose.checked_add(1).unwrap_or(usize::MAX);
     let modules = &[module_path!(), "reqwest"];
     stderrlog::new()
         .modules(modules.iter().cloned())
-        .verbosity(v + 1)
+        .verbosity(v)
         .init()
         .unwrap();
 
-    info!("this is XDU-ICPC cftool, {}", VERSION);
+    info!("this is XDU-ICPC cftool, {}", app::VERSION);
 
     let mut action = Action::None;
 
-    if let Some(problem) = matches.value_of("problem") {
+    if let Some(problem) = args.problem {
         if problem.len() != 1 || !('A'..'Z').contains(&problem.chars().next().unwrap()) {
             error!("{} is impossible to be a problem ID", problem);
             exit(1);
         }
-        action = Action::Submit(String::from(problem));
+        action = Action::Submit(problem);
     }
 
     let conflict_msg = "can only use one of --dry-run, --query, \
                         and --problem";
-    if matches.occurrences_of("dry-run") > 0 {
+    if args.dry_run {
         if let Action::None = action {
             action = Action::Dry;
         } else {
@@ -238,7 +128,7 @@ fn main() {
         }
     }
 
-    if matches.occurrences_of("query") > 0 {
+    if args.query {
         if let Action::None = action {
             action = Action::Query;
         } else {
@@ -247,10 +137,9 @@ fn main() {
         }
     }
 
-    let need_poll = matches.occurrences_of("poll") > 0;
+    let need_poll = args.poll;
 
-    let source = matches.value_of("source").unwrap_or("");
-    if matches.value_of("source").is_some() {
+    if let Some(source) = args.source.as_ref() {
         match action {
             Action::Dry | Action::Query => {
                 error!(
@@ -261,7 +150,7 @@ fn main() {
             }
             Action::Submit(_) => (),
             Action::None => {
-                let path = std::path::Path::new(source);
+                let path = std::path::Path::new(&source);
                 if let Some(s) = path.file_stem().and_then(|x| x.to_str()) {
                     if s.len() == 1 {
                         let s = s.to_owned();
@@ -297,13 +186,13 @@ fn main() {
     }
 
     if let Action::Submit(_) = &action {
-        if matches.value_of("source").is_none() {
+        if args.source.is_none() {
             error!("attempt to submit, but no source code specified");
             exit(1);
         }
     }
 
-    let no_color = matches.occurrences_of("no-color") > 0;
+    let no_color = args.no_color;
 
     let mut builder = Codeforces::builder();
     let mut cookie_dir = None;
@@ -357,25 +246,24 @@ fn main() {
         debug!("cftool.json does not exist")
     }
 
-    let custom_config = matches.value_of("config").unwrap_or("");
-    if !custom_config.is_empty() {
-        let path = std::path::Path::new(custom_config);
+    if let Some(custom_config) = args.config {
+        let path = std::path::Path::new(&custom_config);
         builder = set_from_file(builder, path);
     }
 
-    if let Some(path) = matches.value_of("cookie") {
+    if let Some(path) = args.cookie {
         builder = builder.cookie_file(std::path::PathBuf::from(path));
     }
 
-    if let Some(server) = matches.value_of("server") {
-        builder = builder.server_url(server);
+    if let Some(server) = args.server {
+        builder = builder.server_url(&server);
     }
 
-    if let Some(identy) = matches.value_of("identy") {
+    if let Some(identy) = args.identy {
         builder = builder.identy(identy);
     }
 
-    if let Some(contest) = matches.value_of("contest") {
+    if let Some(contest) = args.contest {
         builder = builder.contest_path(contest);
     }
 
@@ -391,7 +279,7 @@ fn main() {
         exit(1);
     });
 
-    let dialect = matches.value_of("dialect");
+    let dialect = args.dialect.as_deref();
 
     let logon = cf.probe_login_status().unwrap_or_else(|e| {
         error!("can not probe if we are already logon: {}", e);
@@ -449,7 +337,8 @@ fn main() {
         Action::None => unreachable!(),
     };
 
-    cf.submit(&problem, source, dialect).unwrap_or_else(|err| {
+    let source = args.source.unwrap();
+    cf.submit(&problem, &source, dialect).unwrap_or_else(|err| {
         error!("submit failed: {}", err);
         exit(1);
     });
