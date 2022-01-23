@@ -14,8 +14,9 @@ pub enum Response {
     Other(StatusCode),
 }
 
-impl Response {
-    pub fn wrap(resp: reqwest::blocking::Response) -> Result<Response> {
+impl TryFrom<reqwest::blocking::Response> for Response {
+    type Error = Error;
+    fn try_from(resp: reqwest::blocking::Response) -> Result<Response> {
         if resp.status().is_success() {
             return Ok(Self::Content(
                 resp.text().chain_err(|| "cannot parse response body")?,

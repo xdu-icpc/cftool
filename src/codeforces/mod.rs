@@ -346,7 +346,7 @@ impl Codeforces {
     {
         self.csrf = None;
         let mut retry_limit = if retry { self.retry_limit } else { 1 };
-        loop {
+        let resp = loop {
             let method = method.clone();
             let u = self
                 .server_url
@@ -360,18 +360,16 @@ impl Codeforces {
                     continue;
                 }
             }
+            break resp;
+        };
 
-            let resp = resp
-                .chain_err(|| "can not get response")
-                .map(Response::wrap)?
-                .chain_err(|| "glitched HTTP response");
+        let resp = resp
+            .chain_err(|| "can not send HTTP request")?
+            .try_into()
+            .chain_err(|| "bad HTTP response")?;
 
-            if let Ok(r) = &resp {
-                self.csrf = get_csrf_token(r);
-            }
-
-            return resp.chain_err(|| "http request failed");
-        }
+        self.csrf = get_csrf_token(&resp);
+        Ok(resp)
     }
 
     fn add_header(&self, b: RequestBuilder) -> RequestBuilder {
