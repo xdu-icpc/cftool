@@ -61,4 +61,8 @@ pub struct App {
     /// Submits this source code file
     #[clap(short = 's', long)]
     pub source: Option<String>,
+
+    /// Bypass the sanity check for problem ID
+    #[clap(short, long)]
+    pub force: bool,
 }

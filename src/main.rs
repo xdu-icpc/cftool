@@ -92,6 +92,26 @@ enum Action {
     Dry,
     Query,
     Submit(String),
+    Err(String),
+}
+
+impl Action {
+    fn submit<T: ToString>(s: T, force: bool) -> Self {
+        let s = s.to_string().to_uppercase();
+        if !force {
+            let re = regex::Regex::new(r"^[A-Z]([1-9][0-9]*)?$").unwrap();
+            if !re.is_match(&s) {
+                return Self::Err(
+                    format!("{} does not look like a problem ID", s)
+                );
+            }
+        }
+        Self::Submit(s)
+    }
+
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
 }
 
 fn main() {
@@ -110,11 +130,7 @@ fn main() {
     let mut action = Action::None;
 
     if let Some(problem) = args.problem {
-        if problem.len() != 1 || !('A'..'Z').contains(&problem.chars().next().unwrap()) {
-            error!("{} is impossible to be a problem ID", problem);
-            exit(1);
-        }
-        action = Action::Submit(problem);
+        action = Action::submit(problem, args.force);
     }
 
     let conflict_msg = "can only use one of --dry-run, --query, \
@@ -140,7 +156,7 @@ fn main() {
     let need_poll = args.poll;
 
     if let Some(source) = args.source.as_ref() {
-        match action {
+        match &action {
             Action::Dry | Action::Query => {
                 error!(
                     "specifying source code file does not make sense \
@@ -152,45 +168,42 @@ fn main() {
             Action::None => {
                 let path = std::path::Path::new(&source);
                 if let Some(s) = path.file_stem().and_then(|x| x.to_str()) {
-                    if s.len() == 1 {
-                        let s = s.to_owned();
-                        action = match s.chars().next().unwrap() {
-                            'A'..='Z' => Action::Submit(s),
-                            'a'..='z' => Action::Submit(s.to_uppercase()),
-                            _ => Action::None,
-                        }
-                    }
-                }
-                if let Action::Submit(problem) = &action {
-                    info!("guessed problem ID to be {}", problem);
+                    action = Action::submit(s, args.force);
                 } else {
                     error!(
                         "can't guess problem ID from the filename, \
                         please specify it explicitly"
                     );
-                    exit(1);
+                }
+                if let Action::Submit(problem) = &action {
+                    info!("guessed problem ID to be {}", problem);
                 }
             }
+            Action::Err(_) => (),
         }
     }
 
-    if need_poll {
-        if let Action::None = action {
-            action = Action::Query;
-        }
+    if need_poll && action.is_none() {
+        action = Action::Query;
     }
 
-    if let Action::None = action {
-        error!("must use one of --dry-run, --query, and --problem");
-        exit(1);
-    }
-
-    if let Action::Submit(_) = &action {
-        if args.source.is_none() {
-            error!("attempt to submit, but no source code specified");
+    match &action {
+        Action::None => {
+            error!("must use one of --dry-run, --query, and --problem");
             exit(1);
-        }
-    }
+        },
+        Action::Submit(_) => {
+            if args.source.is_none() {
+                error!("attempt to submit, but no source code specified");
+                exit(1);
+            }
+        },
+        Action::Err(s) => {
+            error!("{}", s);
+            exit(1);
+        },
+        Action::Dry | Action::Query => (),
+    };
 
     let no_color = args.no_color;
 
@@ -334,7 +347,7 @@ fn main() {
             poll_or_query_verdict(&mut cf, need_poll, no_color);
             exit(0);
         }
-        Action::None => unreachable!(),
+        Action::None | Action::Err(_) => unreachable!(),
     };
 
     let source = args.source.unwrap();
