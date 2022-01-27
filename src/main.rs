@@ -101,9 +101,7 @@ impl Action {
         if !force {
             let re = regex::Regex::new(r"^[A-Z]([1-9][0-9]*)?$").unwrap();
             if !re.is_match(&s) {
-                return Self::Err(
-                    format!("{} does not look like a problem ID", s)
-                );
+                return Self::Err(format!("{} does not look like a problem ID", s));
             }
         }
         Self::Submit(s)
@@ -191,17 +189,17 @@ fn main() {
         Action::None => {
             error!("must use one of --dry-run, --query, and --problem");
             exit(1);
-        },
+        }
         Action::Submit(_) => {
             if args.source.is_none() {
                 error!("attempt to submit, but no source code specified");
                 exit(1);
             }
-        },
+        }
         Action::Err(s) => {
             error!("{}", s);
             exit(1);
-        },
+        }
         Action::Dry | Action::Query => (),
     };
 
