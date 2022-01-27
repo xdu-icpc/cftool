@@ -464,7 +464,7 @@ impl Codeforces {
     pub fn get_last_submission(&mut self) -> Result<String> {
         let url = self
             .contest_url
-            .join("my")
+            .join("my?cftool=1")
             .chain_err(|| "cannot generate status URL")?;
         let resp = self.http_get(url).chain_err(|| "cannot GET status page")?;
         let txt = if let Response::Content(t) = resp {
@@ -549,7 +549,15 @@ impl Codeforces {
                 "server don't like the code, recheck \
                 - maybe submitting same code multiple times?"
             ),
-            Response::Redirection(_) => Ok(()),
+            Response::Redirection(u) => {
+                if u != self.contest_url.join("my").unwrap() {
+                    bail!(
+                        "server don't like the code, recheck \
+                        - maybe submitting to a nonexist problem?"
+                    );
+                }
+                Ok(())
+            }
         }
     }
 }
