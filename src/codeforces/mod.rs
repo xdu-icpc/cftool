@@ -546,13 +546,13 @@ impl Codeforces {
         match resp {
             Response::Other(status) => bail!("POST failed, status = {}", status),
             Response::Content(_) => bail!(
-                "server don't like the code, recheck \
+                "server does not like the code, please recheck \
                 - maybe submitting same code multiple times?"
             ),
             Response::Redirection(u) => {
                 if u != self.contest_url.join("my").unwrap() {
                     bail!(
-                        "server don't like the code, recheck \
+                        "server does not like the code, please recheck \
                         - maybe submitting to a nonexist problem?"
                     );
                 }
