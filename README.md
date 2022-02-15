@@ -37,9 +37,13 @@ or `https_proxy` for https connections.  For example:
 
 ## Bugs and non-bugs
 
-`cftool` has been tested in several rated contests.  But it's still not sure
-if it would cause you to be unrated or banned, especially if you misused or
-overused it in some way.
+`cftool` has been tested in many rated contests.  it shouldn't cause you
+to be unrated or banned, unless you misused or overused it in some way.
+
+It's known that Codeforces server will throttle the traffic from your IP
+if you are making requests too frequently.  In theory it has nothing to do
+with `cftool`. But, if you use `cftool` in a script and make some mistake
+in your script, the throttle will be more likely to happen.
 
 `cftool` does not support Codeforces basic contest servers (for example,
 `https://m2.codeforces.com`) yet.
