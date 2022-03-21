@@ -196,24 +196,34 @@ version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5f1c7727e460397e56abc4bddc1d49e07a1ad78fc98eb2e1c8f032a58a2f80d"
 dependencies = [
- "percent-encoding",
  "time 0.2.27",
  "version_check",
 ]
 
 [[package]]
-name = "cookie_store"
-version = "0.15.1"
+name = "cookie"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3f7034c0932dc36f5bd8ec37368d971346809435824f277cb3b8299fc56167c"
+checksum = "94d4706de1b0fa5b132270cddffa8585166037822e260a944fe161acd137ca05"
 dependencies = [
- "cookie",
+ "percent-encoding",
+ "time 0.3.7",
+ "version_check",
+]
+
+[[package]]
+name = "cookie_store"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79e30245051f0a03f02067746d5b4d564615fda5fbfb2d290280c53c24938922"
+dependencies = [
+ "cookie 0.16.0",
  "idna",
  "log",
  "publicsuffix",
  "serde",
  "serde_json",
- "time 0.2.27",
+ "time 0.3.7",
  "url",
 ]
 
@@ -732,6 +742,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_threads"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aba1801fb138d8e85e11d0fc70baf4fe1cdfffda7c6cd34a854905df588e5ed0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "object"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -932,7 +951,7 @@ dependencies = [
  "async-compression",
  "base64",
  "bytes",
- "cookie",
+ "cookie 0.15.1",
  "cookie_store",
  "encoding_rs",
  "futures-core",
@@ -973,7 +992,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48cbf3a2aeeeaa6d10a76db86068c3560320f6265c3a0e2642e0538e11c2d143"
 dependencies = [
  "bytes",
- "cookie",
+ "cookie 0.15.1",
  "cookie_store",
  "reqwest",
  "url",
@@ -1311,9 +1330,21 @@ dependencies = [
  "libc",
  "standback",
  "stdweb",
- "time-macros",
+ "time-macros 0.1.1",
  "version_check",
  "winapi",
+]
+
+[[package]]
+name = "time"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "004cbc98f30fa233c61a38bc77e96a9106e65c88f2d3bef182ae952027e5753d"
+dependencies = [
+ "itoa",
+ "libc",
+ "num_threads",
+ "time-macros 0.2.3",
 ]
 
 [[package]]
@@ -1325,6 +1356,12 @@ dependencies = [
  "proc-macro-hack",
  "time-macros-impl",
 ]
+
+[[package]]
+name = "time-macros"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25eb0ca3468fc0acc11828786797f6ef9aa1555e4a211a60d64cc8e4d1be47d6"
 
 [[package]]
 name = "time-macros-impl"
