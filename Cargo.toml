@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 reqwest = { version = "0.11", features = ["blocking", "gzip", "socks", "multipart", "native-tls-alpn" ] }
 regex = "1.5"
-clap = { version = "3.1.15", features = ["derive"] }
+clap = { version = "3.1.17", features = ["derive"] }
 directories = "4.0"
 log = "0.4"
 stderrlog = "0.5"
