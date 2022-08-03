@@ -15,7 +15,7 @@ log = "0.4"
 stderrlog = "0.5"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-rpassword = "6.0"
+rpassword = "7.0"
 url = "2.2.2"
 termcolor = "1.1"
 error-chain = "0.12.4"
