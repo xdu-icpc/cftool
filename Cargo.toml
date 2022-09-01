@@ -23,3 +23,6 @@ cookie_store = "0.17.0"
 git-version = "0.3.5"
 serde-aux = "3.1.0"
 reqwest_cookie_store = "0.4.0"
+
+[patch.crates-io]
+reqwest_cookie_store = { git = 'https://github.com/xdu-icpc/reqwest_cookie_store', branch = 'cookie-store-0_17' }
