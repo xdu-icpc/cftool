@@ -504,7 +504,7 @@ impl Codeforces {
 
     pub fn submit(&mut self, problem: &str, src_path: &str, dialect: Option<&str>) -> Result<()> {
         let dialect = match dialect {
-            Some(d) => language::get_lang_dialect(d),
+            Some(d) => language::Dialect::new(d),
             None => {
                 let ext = std::path::Path::new(src_path)
                     .extension()
@@ -534,7 +534,7 @@ impl Codeforces {
                     .text("csrf_token", csrf.clone())
                     .text("action", "submitSolutionFormSubmitted")
                     .text("submittedProblemIndex", problem.to_owned())
-                    .text("programTypeId", dialect)
+                    .text("programTypeId", dialect.to_id())
                     .text("tabSize", "4")
                     .text("sourceCodeConfirmed", "true")
                     .part("sourceFile", src);
