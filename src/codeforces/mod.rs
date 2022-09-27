@@ -108,7 +108,7 @@ impl CodeforcesBuilder {
 
         let cxx = b.cxx_dialect.as_ref().map_or("c++17-64", |x| x.as_ref());
         let py = b.py_dialect.as_ref().map_or("py3", |x| x.as_ref());
-        let rs = b.rust_edition.as_ref().map_or("2018", |x| x.as_ref());
+        let rs = b.rust_edition.as_ref().map_or("2021", |x| x.as_ref());
 
         let dialect = language::DialectParser::new(cxx, py, rs)
             .chain_err(|| "can not parse dialect setting")?;

@@ -32,7 +32,6 @@ pub fn py_dialect_recognize(d: &str) -> Result<&'static str> {
 
 pub fn rs_edition_recognize(e: &str) -> Result<&'static str> {
     Ok(match e {
-        "2018" => "rust2018",
         "2021" => "rust2021",
         _ => bail!("unknown or unsupported Rust edition: {}", e),
     })
@@ -49,7 +48,6 @@ pub fn get_lang_dialect(dialect: &str) -> Result<&'static str> {
         "py2" => "7",
         "pypy3" => "41",
         "pypy2" => "40",
-        "rust2018" => "49",
         "rust2021" => "75",
         "java" => "36",
         _ => bail!("don't know dialect {}", dialect),
