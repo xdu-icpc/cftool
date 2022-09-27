@@ -16,7 +16,7 @@ stderrlog = "0.5"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 rpassword = "7.0"
-url = "2.2.2"
+url = "2.3.0"
 termcolor = "1.1"
 error-chain = "0.12.4"
 cookie_store = "0.17.0"
