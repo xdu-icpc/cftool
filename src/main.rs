@@ -115,11 +115,11 @@ impl Action {
 fn main() {
     use app::Parser;
     let args = app::App::parse();
-    let v = args.verbose.checked_add(1).unwrap_or(usize::MAX);
+    let v = args.verbose.checked_add(1).unwrap_or(u8::MAX);
     let modules = &[module_path!(), "reqwest"];
     stderrlog::new()
         .modules(modules.iter().cloned())
-        .verbosity(v)
+        .verbosity(v as usize)
         .init()
         .unwrap();
 

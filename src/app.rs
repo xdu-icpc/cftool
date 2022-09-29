@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 
-pub use clap::Parser;
+pub use clap::{ArgAction::Count, Parser};
 
 /// Version automatically generated from git
 pub const VERSION: &str =
@@ -27,8 +27,8 @@ pub struct App {
     pub query: bool,
 
     /// Sets the level of verbosity
-    #[clap(short = 'v', parse(from_occurrences))]
-    pub verbose: usize,
+    #[clap(short = 'v', action = Count)]
+    pub verbose: u8,
 
     /// Sets a custom config file, overriding other config files
     #[clap(short = 'c', long)]
