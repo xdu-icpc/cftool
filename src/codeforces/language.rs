@@ -73,8 +73,21 @@ impl Dialect {
             _ => bail!("don't know dialect {}", s.as_ref()),
         })
     }
+
     pub fn to_id(self) -> String {
         (self as u32).to_string()
+    }
+
+    pub fn get_mime(self) -> &'static str {
+        use Dialect::*;
+        match self {
+            C => "text/x-c++src",
+            CXX14 | CXX17 | CXX17_64 | CXX20 => "text/x-c++src",
+            Pypy2 | Python2 => "text/x-python",
+            Pypy3 | Python3 => "text/x-python3",
+            Rust2021 => "text/rust",
+            Java => "text/x-java",
+        }
     }
 }
 

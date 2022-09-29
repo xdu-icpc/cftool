@@ -529,7 +529,18 @@ impl Codeforces {
             &url,
             |x| {
                 use reqwest::blocking::multipart::{Form, Part};
-                let src = Part::file(src_path).chain_err(|| format!("cannot load {}", src_path))?;
+
+                let src = match dialect {
+                    language::Dialect::Rust2021 => unfold::unfold_rust(src_path)
+                        .chain_err(|| format!("cannot load or unfold {}", src_path))?,
+                    _ => std::fs::read_to_string(src_path)
+                        .chain_err(|| format!("cannot load {}", src_path))?,
+                };
+
+                let src = Part::text(src)
+                    .file_name(src_path.to_owned())
+                    .mime_str(dialect.get_mime())
+                    .chain_err(|| format!("cannot prepare payload for {}", src_path))?;
 
                 let form = Form::new()
                     .text("csrf_token", csrf.clone())
