@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("cannot parse file: {0}")]
-    ParseError(syn::parse::Error),
+    Parse(syn::parse::Error),
     #[error("input/output error: {0}")]
-    IOError(std::io::Error),
+    IO(std::io::Error),
     #[error("multiple path attribute for a mod")]
     MultiplePathAttr,
     #[error("bad path attribute: expect {0}")]
@@ -17,21 +17,23 @@ pub enum Error {
     #[error("module found at both {0} and {1}")]
     AmbiguityModule(PathBuf, PathBuf),
     #[error("rustfmt fail")]
-    RustFmtError,
+    Rustfmt,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 fn unfold_rust_src_recursive<P: AsRef<Path>>(p: P, search_parent: bool) -> Result<syn::File> {
     let p = PathBuf::from(p.as_ref());
-    let mut file = std::fs::File::open(&p).map_err(Error::IOError)?;
+    let mut file = std::fs::File::open(&p).map_err(Error::IO)?;
     let mut content = String::new();
-    let parent = p.parent().ok_or(Error::BadSrcPath(PathBuf::from(&p)))?;
+    let parent = p
+        .parent()
+        .ok_or_else(|| Error::BadSrcPath(PathBuf::from(&p)))?;
     let mut recursive_sp = false;
 
     use std::io::Read;
-    file.read_to_string(&mut content).map_err(Error::IOError)?;
-    let mut ast = syn::parse_file(&mut content).map_err(Error::ParseError)?;
+    file.read_to_string(&mut content).map_err(Error::IO)?;
+    let mut ast = syn::parse_file(&content).map_err(Error::Parse)?;
 
     let mut items = vec![];
     std::mem::swap(&mut ast.items, &mut items);
@@ -68,7 +70,7 @@ fn unfold_rust_src_recursive<P: AsRef<Path>>(p: P, search_parent: bool) -> Resul
 
                     let str_lit: litrs::StringLit<String> = it
                         .next()
-                        .ok_or_else(|| Error::BadPathAttr(msg))?
+                        .ok_or(Error::BadPathAttr(msg))?
                         .try_into()
                         .map_err(|_| Error::BadPathAttr(msg))?;
 
@@ -77,7 +79,7 @@ fn unfold_rust_src_recursive<P: AsRef<Path>>(p: P, search_parent: bool) -> Resul
                 .transpose()?
                 .map(|x| {
                     recursive_sp = true;
-                    Ok(PathBuf::from(x))
+                    Ok(x)
                 })
                 .unwrap_or_else(|| {
                     let mod_name = m.ident.to_string();
@@ -116,23 +118,23 @@ fn unfold_rust_src_recursive<P: AsRef<Path>>(p: P, search_parent: bool) -> Resul
 
 fn run_rustfmt(content: &str) -> Result<String> {
     use std::process::{Command, Stdio};
-    use Error::RustFmtError;
+    use Error::Rustfmt;
     let content = content.to_owned();
 
     let mut rustfmt = Command::new("rustfmt")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .map_err(|_| RustFmtError)?;
+        .map_err(|_| Rustfmt)?;
 
-    let mut stdin = rustfmt.stdin.take().ok_or(RustFmtError)?;
+    let mut stdin = rustfmt.stdin.take().ok_or(Rustfmt)?;
     std::thread::spawn(move || {
         use std::io::Write;
         stdin.write_all(content.as_bytes()).unwrap();
     });
 
-    let output = rustfmt.wait_with_output().map_err(|_| RustFmtError)?;
-    String::from_utf8(output.stdout).map_err(|_| RustFmtError)
+    let output = rustfmt.wait_with_output().map_err(|_| Rustfmt)?;
+    String::from_utf8(output.stdout).map_err(|_| Rustfmt)
 }
 
 pub fn unfold_rust<P: AsRef<Path>>(p: P) -> Result<String> {
