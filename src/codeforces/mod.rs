@@ -12,6 +12,7 @@ use url::Url;
 mod config;
 mod language;
 mod response;
+mod unfold;
 mod verdict;
 
 pub type Response = response::Response;
