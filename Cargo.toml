@@ -26,7 +26,7 @@ reqwest_cookie_store = "0.4.0"
 syn = { version = "1.0.101", features = ["full", "extra-traits"] }
 thiserror = "1.0"
 quote = "1.0.21"
-proc-macro2 = "1.0.44"
+proc-macro2 = "1.0.46"
 litrs = "0.2.3"
 
 [patch.crates-io]
