@@ -121,7 +121,6 @@ name = "cftool"
 version = "0.7.0"
 dependencies = [
  "clap",
- "cookie_store 0.17.0",
  "directories",
  "error-chain",
  "git-version",
@@ -233,12 +232,12 @@ dependencies = [
 
 [[package]]
 name = "cookie_store"
-version = "0.17.0"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8b224f141ecbc952e57b58dae7677899c722a1abdb8c60b68b62bf4d4435bd7"
+checksum = "bca9b3c618262fc0c85ecbc814c144e04be9c6eec08b315e7cd1cfbe0bb6ca84"
 dependencies = [
  "cookie",
- "idna 0.2.3",
+ "idna 0.3.0",
  "log",
  "publicsuffix",
  "serde",
@@ -1074,12 +1073,13 @@ dependencies = [
 
 [[package]]
 name = "reqwest_cookie_store"
-version = "0.4.0"
-source = "git+https://github.com/xdu-icpc/reqwest_cookie_store?branch=cookie-store-0_17#9ecd81be002a06039a142c80ab463ae95cf7b87d"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06b407c05de7a0f7e4cc2a56af5e9bd6468e509124e81078ce1f8bc2ed3536bf"
 dependencies = [
  "bytes",
  "cookie",
- "cookie_store 0.17.0",
+ "cookie_store 0.19.0",
  "reqwest",
  "url",
 ]

@@ -1,4 +1,4 @@
-use cookie_store::CookieStore;
+use reqwest_cookie_store::CookieStore;
 use error_chain::bail;
 use reqwest::blocking::RequestBuilder;
 use reqwest::header::USER_AGENT;
