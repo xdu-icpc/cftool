@@ -1,9 +1,9 @@
-use reqwest_cookie_store::CookieStore;
 use error_chain::bail;
 use reqwest::blocking::RequestBuilder;
 use reqwest::header::USER_AGENT;
 use reqwest::redirect;
 use reqwest::Method;
+use reqwest_cookie_store::CookieStore;
 use reqwest_cookie_store::CookieStoreMutex;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -283,6 +283,51 @@ fn get_csrf_token(resp: &Response) -> Option<String> {
     }
 }
 
+fn get_rcpc_parameter(s: &str, name: &str) -> Result<[u8; 16]> {
+    let pat = format!("{}=toNumbers(\"", name);
+    if let Some(p) = s.find(&pat) {
+        let ss = &s[p..];
+        if ss.len() <= pat.len() + 32 {
+            bail!("failed to get RCPC parameter '{}'", name);
+        }
+        let ss = &ss[pat.len()..];
+        let mut arr = [0; 32];
+        for (i, c) in ss.chars().take(32).enumerate() {
+            if !c.is_ascii_hexdigit() {
+                bail!("failed to get RCPC parameter '{}'", name);
+            }
+            arr[i] = c as u8;
+        }
+        let bytes = hex::decode(arr).chain_err(|| "failed to get RCPC parameter")?;
+
+        let mut ret = [0; 16];
+        ret.copy_from_slice(&bytes);
+        return Ok(ret);
+    }
+    bail!("failed to get RCPC parameter '{}'", name);
+}
+
+/// Attempt to emulate the Javascript code to calculate "RCPC"
+/// I don't even know what it is...  Looks like a "DoS mitigation".
+fn get_rcpc(resp: &Response) -> Result<Option<String>> {
+    if let Response::Content(txt) = resp {
+        if txt.contains("Redirecting... Please, wait.") {
+            let key = get_rcpc_parameter(txt, "a")?;
+            let iv = get_rcpc_parameter(txt, "b")?;
+            let mut blk = get_rcpc_parameter(txt, "c")?.into();
+
+            use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+            type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
+            Aes128CbcDec::new(&key.into(), &iv.into()).decrypt_block_mut(&mut blk);
+            Ok(Some(hex::encode(blk)))
+        } else {
+            Ok(None)
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 pub struct Codeforces {
     server_url: Url,
     identy: String,
@@ -347,6 +392,7 @@ impl Codeforces {
     {
         self.csrf = None;
         let mut retry_limit = if retry { self.retry_limit } else { 1 };
+        let mut retry_rcpc = true;
         let resp = loop {
             let method = method.clone();
             let u = self
@@ -361,13 +407,27 @@ impl Codeforces {
                     continue;
                 }
             }
+
+            let resp = resp
+                .chain_err(|| "can not send HTTP request")?
+                .try_into()
+                .chain_err(|| "bad HTTP response")?;
+
+            if let Some(rcpc) = get_rcpc(&resp)? {
+                if !retry_rcpc {
+                    bail!("the server does not like our RCPC");
+                }
+                let cookie_str = format!(
+                    "RCPC=\"{}\"; expires=Thu, 31-Dec-37 23:55:55 GMT; path=/",
+                    rcpc
+                );
+                self.insert_cookie(&cookie_str, &u)?;
+                retry_rcpc = false;
+                continue;
+            }
+
             break resp;
         };
-
-        let resp = resp
-            .chain_err(|| "can not send HTTP request")?
-            .try_into()
-            .chain_err(|| "bad HTTP response")?;
 
         self.csrf = get_csrf_token(&resp);
         Ok(resp)
@@ -385,6 +445,17 @@ impl Codeforces {
         store
             .save_json(w)
             .map_err(|e| format!("cannot save cookie: {}", e).into())
+    }
+
+    fn insert_cookie(&mut self, cookie: &str, url: &Url) -> Result<()> {
+        let mut store = match self.cookie_store.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        store
+            .parse(cookie, url)
+            .chain_err(|| "cannot insert cookie: {}")?;
+        Ok(())
     }
 
     pub fn judgement_protocol(&mut self, id: &str) -> Result<String> {
