@@ -217,7 +217,7 @@ dependencies = [
  "serde-aux",
  "serde_json",
  "stderrlog",
- "syn 1.0.109",
+ "syn 2.0.15",
  "termcolor",
  "thiserror",
  "url",
