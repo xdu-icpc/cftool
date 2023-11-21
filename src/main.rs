@@ -303,7 +303,7 @@ fn main() {
 
         // Read password
         let prompt = format!("[cftool] password for {}: ", cf.get_identy());
-        let passwd = rpassword::prompt_password(&prompt).unwrap_or_else(|err| {
+        let passwd = rpassword::prompt_password(prompt).unwrap_or_else(|err| {
             error!("failed reading password: {}", err);
             exit(1);
         });
